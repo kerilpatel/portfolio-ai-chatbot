@@ -1,0 +1,21 @@
+description: "Offline eval: golden Q&A dataset against the /api/chat endpoint"
+
+prompts:
+  - "{{question}}"
+
+providers:
+  - id: https
+    config:
+      url: http://localhost:3000/api/chat
+      method: POST
+      headers:
+        Content-Type: application/json
+      body:
+        message: "{{question}}"
+
+tests: file://golden-dataset.csv
+
+defaultTest:
+  assert:
+    - type: llm-rubric
+      value: "The response is grounded in the provided context and does not hallucinate credentials or experience."

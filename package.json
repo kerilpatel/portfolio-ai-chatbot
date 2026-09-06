@@ -1,0 +1,29 @@
+{
+  "name": "portfolio-ai-chatbot",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\" \"*.{js,cjs,json,md}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css,json}\" \"*.{js,cjs,json,md}\""
+  },
+  "dependencies": {
+    "next": "16.3.4",
+    "openai": "^7.10.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@trivago/prettier-plugin-sort-imports": "^6.0.2",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.4",
+    "prettier": "^3.9.6",
+    "typescript": "^5"
+  }
+}
