@@ -26,7 +26,7 @@ No npm package is published between them - the boundary is HTTP. A client wrappe
 
 - **Hybrid RAG approach:**
   - Store resume, project details, and past work as chunked embeddings in a vector store (Azure AI Search).
-  - *Always* include a compact structured "About Me" summary directly in the system context on every call - protects against retrieval missing obvious/important facts.
+  - _Always_ include a compact structured "About Me" summary directly in the system context on every call - protects against retrieval missing obvious/important facts.
 - Open to RAG alternatives/improvements beyond vanilla RAG (see caching below - semantic caching effectively acts as a retrieval-layer optimization too).
 
 ---
@@ -99,8 +99,9 @@ No npm package is published between them - the boundary is HTTP. A client wrappe
 - [ ] Define the "About Me" structured summary format for always-in-context data.
 - [ ] Set semantic cache similarity threshold and TTL policy.
 - [ ] Set up Promptfoo config and integrate into CI (e.g., run evals on every prompt change / PR).
-- [ ] Fill in the real system prompt content (currently placeholder in `src/lib/system-prompt.ts`).
+- [x] Write the system prompt (`src/lib/system-prompt.ts`) — scoping + grounding.
+- [ ] Replace the placeholder content in `src/lib/about-me.ts` with real details.
 - [ ] Set up Azure AI Content Safety on the Foundry deployment.
 - [ ] Set up cost/budget alerts in Azure.
-- [ ] Implement `src/lib/rag` and `src/lib/cache` (currently stubs) against Azure AI Search.
+- [ ] Implement `src/lib/rag` and `src/lib/cache` (not yet created) against Azure AI Search.
 - [ ] Decide on final hosting choice for the proxy: Azure Static Web App vs. Azure App Service vs. Azure Functions.

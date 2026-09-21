@@ -8,7 +8,9 @@ See [docs/plan.md](docs/plan.md) for the full design.
 
 ## Structure
 
-- `src/app/api/chat/route.ts` — chat endpoint (placeholder)
+- `src/app/api/chat/route.ts` — chat endpoint (single-turn, no RAG yet)
+- `src/lib/system-prompt.ts` — scoping + grounding guardrail prompt
+- `src/lib/about-me.ts` — always-in-context summary (placeholder content)
 - `eval/` — Promptfoo config + golden Q&A dataset
 - `docs/plan.md` — architecture and open questions
 
@@ -28,6 +30,14 @@ Open [http://localhost:3000](http://localhost:3000).
 npx promptfoo eval -c eval/promptfooconfig.yaml
 ```
 
+## API
+
+`POST /api/chat` with `{ "message": "..." }` returns `{ "reply": "..." }`.
+Returns `400` on a missing/empty/over-long message, and `502` with a friendly
+`reply` if the upstream call fails.
+
 ## Status
 
-Setup only — no implementation yet. See [docs/plan.md](docs/plan.md#9-open-questions--next-steps).
+Walking skeleton: a real single-turn Azure OpenAI call, grounded in
+`src/lib/about-me.ts`. No RAG, semantic cache, streaming, rate limiting, or
+CORS yet. See [docs/plan.md](docs/plan.md#9-open-questions--next-steps).
