@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { AzureOpenAI } from "openai";
 
+import { corsHeaders } from "@/lib/cors";
 import { SYSTEM_PROMPT } from "@/lib/system-prompt";
 
 /** Shown instead of a raw error - see docs/plan.md section 4. */
@@ -17,24 +18,34 @@ function requiredEnv(name: string): string {
   return value;
 }
 
+/** Preflight. Allow headers come from the allowlist, so a rejected origin
+ *  still gets a 204 - just without permission to read the real response. */
+export async function OPTIONS(req: NextRequest) {
+  return new NextResponse(null, {
+    status: 204,
+    headers: corsHeaders(req.headers.get("origin")),
+  });
+}
+
 export async function POST(req: NextRequest) {
+  const cors = corsHeaders(req.headers.get("origin"));
+  const reply = (body: unknown, status: number) =>
+    NextResponse.json(body, { status, headers: cors });
+
   let message: unknown;
   try {
     ({ message } = await req.json());
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    return reply({ error: "Invalid JSON body" }, 400);
   }
 
   if (typeof message !== "string" || message.trim().length === 0) {
-    return NextResponse.json(
-      { error: "`message` must be a non-empty string" },
-      { status: 400 },
-    );
+    return reply({ error: "`message` must be a non-empty string" }, 400);
   }
   if (message.length > MAX_MESSAGE_LENGTH) {
-    return NextResponse.json(
+    return reply(
       { error: `\`message\` must be at most ${MAX_MESSAGE_LENGTH} characters` },
-      { status: 400 },
+      400,
     );
   }
 
@@ -56,12 +67,12 @@ export async function POST(req: NextRequest) {
       max_tokens: 400,
     });
 
-    const reply = completion.choices[0]?.message?.content?.trim();
-    if (!reply) throw new Error("Empty completion from Azure OpenAI");
+    const answer = completion.choices[0]?.message?.content?.trim();
+    if (!answer) throw new Error("Empty completion from Azure OpenAI");
 
-    return NextResponse.json({ reply });
+    return reply({ reply: answer }, 200);
   } catch (error) {
     console.error("[api/chat] upstream failure", error);
-    return NextResponse.json({ reply: FALLBACK_REPLY }, { status: 502 });
+    return reply({ reply: FALLBACK_REPLY }, 502);
   }
 }

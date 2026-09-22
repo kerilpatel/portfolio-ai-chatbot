@@ -97,6 +97,7 @@ No npm package is published between them - the boundary is HTTP. A client wrappe
 
 - [ ] Design the golden Q&A dataset for offline evals (expand past the 3 placeholder rows).
 - [ ] Define the "About Me" structured summary format for always-in-context data.
+- [x] CORS allowlist + `OPTIONS` preflight on `/api/chat` (section 8).
 - [ ] Set semantic cache similarity threshold and TTL policy.
 - [ ] Set up Promptfoo config and integrate into CI (e.g., run evals on every prompt change / PR).
 - [x] Write the system prompt (`src/lib/system-prompt.ts`) — scoping + grounding.

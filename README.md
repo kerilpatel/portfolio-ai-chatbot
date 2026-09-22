@@ -34,10 +34,16 @@ npx promptfoo eval -c eval/promptfooconfig.yaml
 
 `POST /api/chat` with `{ "message": "..." }` returns `{ "reply": "..." }`.
 Returns `400` on a missing/empty/over-long message, and `502` with a friendly
-`reply` if the upstream call fails.
+`reply` if the upstream call fails. `OPTIONS /api/chat` handles the preflight.
+
+CORS is an allowlist: set `ALLOWED_ORIGIN` to a comma-separated list of
+origins. A request from anywhere else is still served, but without the
+`Access-Control-Allow-Origin` header, so browsers block it. The header is
+never `*`, and if `ALLOWED_ORIGIN` is unset no browser origin is allowed.
+Every response sends `Vary: Origin` so shared caches stay correct.
 
 ## Status
 
 Walking skeleton: a real single-turn Azure OpenAI call, grounded in
-`src/lib/about-me.ts`. No RAG, semantic cache, streaming, rate limiting, or
-CORS yet. See [docs/plan.md](docs/plan.md#9-open-questions--next-steps).
+`src/lib/about-me.ts`, reachable cross-origin from the site. No RAG, semantic
+cache, streaming, or rate limiting yet. See [docs/plan.md](docs/plan.md#9-open-questions--next-steps).
