@@ -3,12 +3,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { AzureOpenAI } from "openai";
 
 import { corsHeaders } from "@/lib/cors";
+import { checkRateLimit, clientKey } from "@/lib/rate-limit";
 import { SYSTEM_PROMPT } from "@/lib/system-prompt";
 
 /** Shown instead of a raw error - see docs/plan.md section 4. */
 const FALLBACK_REPLY =
   "Seems like you're really interested in me! Something went wrong on my end - " +
   "how about scheduling a call or dropping me an email to learn more?";
+
+/** The same charming redirect, in its intended primary context. Sent as
+ *  `reply` so the UI renders it as a chat bubble rather than an error. */
+const RATE_LIMITED_REPLY =
+  "Seems like you're really interested in me! How about scheduling a call or " +
+  "dropping me an email to learn more?";
 
 const MAX_MESSAGE_LENGTH = 1000;
 
@@ -31,6 +38,18 @@ export async function POST(req: NextRequest) {
   const cors = corsHeaders(req.headers.get("origin"));
   const reply = (body: unknown, status: number) =>
     NextResponse.json(body, { status, headers: cors });
+
+  // Checked before the body is even read, so malformed spam still counts.
+  const limit = checkRateLimit(clientKey(req.headers));
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { reply: RATE_LIMITED_REPLY },
+      {
+        status: 429,
+        headers: { ...cors, "Retry-After": String(limit.retryAfterSeconds) },
+      },
+    );
+  }
 
   let message: unknown;
   try {

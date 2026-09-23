@@ -10,6 +10,8 @@ See [docs/plan.md](docs/plan.md) for the full design.
 
 - `src/app/api/chat/route.ts` — chat endpoint (single-turn, no RAG yet)
 - `src/lib/system-prompt.ts` — scoping + grounding guardrail prompt
+- `src/lib/cors.ts` — origin allowlist
+- `src/lib/rate-limit.ts` — per-IP sliding window
 - `src/lib/about-me.ts` — always-in-context summary (placeholder content)
 - `eval/` — Promptfoo config + golden Q&A dataset
 - `docs/plan.md` — architecture and open questions
@@ -36,6 +38,11 @@ npx promptfoo eval -c eval/promptfooconfig.yaml
 Returns `400` on a missing/empty/over-long message, and `502` with a friendly
 `reply` if the upstream call fails. `OPTIONS /api/chat` handles the preflight.
 
+Rate limited to 20 requests per 15 minutes per IP. Over that it returns `429`
+with a `Retry-After` header and a friendly `reply` in the normal response
+shape, so the UI can render it as a chat message rather than an error. The
+window is in-memory, so it resets on redeploy and is per-instance.
+
 CORS is an allowlist: set `ALLOWED_ORIGIN` to a comma-separated list of
 origins. A request from anywhere else is still served, but without the
 `Access-Control-Allow-Origin` header, so browsers block it. The header is
@@ -45,5 +52,5 @@ Every response sends `Vary: Origin` so shared caches stay correct.
 ## Status
 
 Walking skeleton: a real single-turn Azure OpenAI call, grounded in
-`src/lib/about-me.ts`, reachable cross-origin from the site. No RAG, semantic
-cache, streaming, or rate limiting yet. See [docs/plan.md](docs/plan.md#9-open-questions--next-steps).
+`src/lib/about-me.ts`, reachable cross-origin from the site, with per-IP rate
+limiting. No RAG, semantic cache, or streaming yet. See [docs/plan.md](docs/plan.md#9-open-questions--next-steps).
