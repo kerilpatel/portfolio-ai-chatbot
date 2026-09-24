@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { AzureOpenAI } from "openai";
 
 import { corsHeaders } from "@/lib/cors";
+import { parseHistory } from "@/lib/history";
 import { checkRateLimit, clientKey } from "@/lib/rate-limit";
 import { SYSTEM_PROMPT } from "@/lib/system-prompt";
 
@@ -52,8 +53,9 @@ export async function POST(req: NextRequest) {
   }
 
   let message: unknown;
+  let rawHistory: unknown;
   try {
-    ({ message } = await req.json());
+    ({ message, history: rawHistory } = await req.json());
   } catch {
     return reply({ error: "Invalid JSON body" }, 400);
   }
@@ -68,6 +70,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Untrusted: the client sends history back each turn. parseHistory rejects
+  // any role other than user/assistant, so the guardrail prompt can't be
+  // overwritten from the request body.
+  const history = parseHistory(rawHistory);
+  if (!history.ok) {
+    return reply({ error: history.error }, 400);
+  }
+
   try {
     const client = new AzureOpenAI({
       endpoint: requiredEnv("AZURE_OPENAI_ENDPOINT"),
@@ -80,6 +90,7 @@ export async function POST(req: NextRequest) {
       model: requiredEnv("AZURE_OPENAI_DEPLOYMENT"),
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
+        ...history.messages,
         { role: "user", content: message },
       ],
       temperature: 0.3,

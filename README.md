@@ -12,6 +12,7 @@ See [docs/plan.md](docs/plan.md) for the full design.
 - `src/lib/system-prompt.ts` — scoping + grounding guardrail prompt
 - `src/lib/cors.ts` — origin allowlist
 - `src/lib/rate-limit.ts` — per-IP sliding window
+- `src/lib/history.ts` — conversation history validation + trimming
 - `src/lib/about-me.ts` — always-in-context summary (placeholder content)
 - `eval/` — Promptfoo config + golden Q&A dataset
 - `docs/plan.md` — architecture and open questions
@@ -34,7 +35,13 @@ npx promptfoo eval -c eval/promptfooconfig.yaml
 
 ## API
 
-`POST /api/chat` with `{ "message": "..." }` returns `{ "reply": "..." }`.
+`POST /api/chat` with `{ "message": "...", "history": [...] }` returns
+`{ "reply": "..." }`. `history` is optional and holds prior turns as
+`{ role: "user" | "assistant", content: string }`. This service is stateless,
+so the client sends the conversation back each turn; only the last 6 messages
+(and 4000 characters) are forwarded, since every one is re-billed. Any other
+`role` is rejected with `400` - accepting `system` from the body would let a
+caller overwrite the guardrail prompt.
 Returns `400` on a missing/empty/over-long message, and `502` with a friendly
 `reply` if the upstream call fails. `OPTIONS /api/chat` handles the preflight.
 
@@ -53,4 +60,4 @@ Every response sends `Vary: Origin` so shared caches stay correct.
 
 Walking skeleton: a real single-turn Azure OpenAI call, grounded in
 `src/lib/about-me.ts`, reachable cross-origin from the site, with per-IP rate
-limiting. No RAG, semantic cache, or streaming yet. See [docs/plan.md](docs/plan.md#9-open-questions--next-steps).
+limiting and multi-turn history. No RAG, semantic cache, or streaming yet. See [docs/plan.md](docs/plan.md#9-open-questions--next-steps).
