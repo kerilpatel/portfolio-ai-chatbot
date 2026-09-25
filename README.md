@@ -27,6 +27,14 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+## Tests
+
+```bash
+npm test
+```
+
+Unit tests for `src/lib/` via the Node test runner - no extra dependencies.
+
 ## Evals
 
 ```bash

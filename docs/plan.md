@@ -101,7 +101,7 @@ No npm package is published between them - the boundary is HTTP. A client wrappe
 - [x] Per-visitor rate limiting, in-memory (section 5, layer 4).
 - [x] Conversation history: client-supplied, capped at 6 messages / 4000 chars
       (section 7). Roles other than user/assistant are rejected.
-- [ ] Add a test runner - `src/lib/` logic is currently only verified ad hoc.
+- [x] Add a test runner (`npm test`, Node built-in) covering `src/lib/`.
 - [ ] Move rate limiting to shared storage if this ever runs on >1 instance.
 - [ ] Set semantic cache similarity threshold and TTL policy.
 - [ ] Set up Promptfoo config and integrate into CI (e.g., run evals on every prompt change / PR).
