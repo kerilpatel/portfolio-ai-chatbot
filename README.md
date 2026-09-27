@@ -13,6 +13,7 @@ See [docs/plan.md](docs/plan.md) for the full design.
 - `src/lib/cors.ts` — origin allowlist
 - `src/lib/rate-limit.ts` — per-IP sliding window
 - `src/lib/history.ts` — conversation history validation + trimming
+- `src/lib/observability.ts` — one structured log line per request
 - `src/lib/about-me.ts` — always-in-context summary (placeholder content)
 - `eval/` — Promptfoo config + golden Q&A dataset
 - `docs/plan.md` — architecture and open questions
@@ -68,4 +69,5 @@ Every response sends `Vary: Origin` so shared caches stay correct.
 
 Walking skeleton: a real single-turn Azure OpenAI call, grounded in
 `src/lib/about-me.ts`, reachable cross-origin from the site, with per-IP rate
-limiting and multi-turn history. No RAG, semantic cache, or streaming yet. See [docs/plan.md](docs/plan.md#9-open-questions--next-steps).
+limiting, multi-turn history and structured request logging. No RAG, semantic
+cache, or streaming yet. See [docs/plan.md](docs/plan.md#9-open-questions--next-steps).

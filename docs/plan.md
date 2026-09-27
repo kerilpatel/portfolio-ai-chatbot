@@ -102,6 +102,9 @@ No npm package is published between them - the boundary is HTTP. A client wrappe
 - [x] Conversation history: client-supplied, capped at 6 messages / 4000 chars
       (section 7). Roles other than user/assistant are rejected.
 - [x] Add a test runner (`npm test`, Node built-in) covering `src/lib/`.
+- [x] Structured per-request logging: latency, tokens, outcome (section 7).
+- [ ] Decide whether to sample conversation content for online eval - the log
+      is metadata-only today, and content sampling is a privacy tradeoff.
 - [ ] Move rate limiting to shared storage if this ever runs on >1 instance.
 - [ ] Set semantic cache similarity threshold and TTL policy.
 - [ ] Set up Promptfoo config and integrate into CI (e.g., run evals on every prompt change / PR).

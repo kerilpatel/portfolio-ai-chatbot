@@ -4,6 +4,7 @@ import { AzureOpenAI } from "openai";
 
 import { corsHeaders } from "@/lib/cors";
 import { parseHistory } from "@/lib/history";
+import { logRequest } from "@/lib/observability";
 import { checkRateLimit, clientKey } from "@/lib/rate-limit";
 import { SYSTEM_PROMPT } from "@/lib/system-prompt";
 
@@ -36,13 +37,31 @@ export async function OPTIONS(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const startedAt = Date.now();
+  const client = clientKey(req.headers);
   const cors = corsHeaders(req.headers.get("origin"));
+
   const reply = (body: unknown, status: number) =>
     NextResponse.json(body, { status, headers: cors });
 
+  /** Every exit point logs exactly once - see plan section 7. */
+  const bad = (error: string) => {
+    logRequest(client, {
+      outcome: "bad_request",
+      status: 400,
+      latencyMs: Date.now() - startedAt,
+    });
+    return reply({ error }, 400);
+  };
+
   // Checked before the body is even read, so malformed spam still counts.
-  const limit = checkRateLimit(clientKey(req.headers));
+  const limit = checkRateLimit(client);
   if (!limit.allowed) {
+    logRequest(client, {
+      outcome: "rate_limited",
+      status: 429,
+      latencyMs: Date.now() - startedAt,
+    });
     return NextResponse.json(
       { reply: RATE_LIMITED_REPLY },
       {
@@ -57,17 +76,14 @@ export async function POST(req: NextRequest) {
   try {
     ({ message, history: rawHistory } = await req.json());
   } catch {
-    return reply({ error: "Invalid JSON body" }, 400);
+    return bad("Invalid JSON body");
   }
 
   if (typeof message !== "string" || message.trim().length === 0) {
-    return reply({ error: "`message` must be a non-empty string" }, 400);
+    return bad("`message` must be a non-empty string");
   }
   if (message.length > MAX_MESSAGE_LENGTH) {
-    return reply(
-      { error: `\`message\` must be at most ${MAX_MESSAGE_LENGTH} characters` },
-      400,
-    );
+    return bad(`\`message\` must be at most ${MAX_MESSAGE_LENGTH} characters`);
   }
 
   // Untrusted: the client sends history back each turn. parseHistory rejects
@@ -75,18 +91,18 @@ export async function POST(req: NextRequest) {
   // overwritten from the request body.
   const history = parseHistory(rawHistory);
   if (!history.ok) {
-    return reply({ error: history.error }, 400);
+    return bad(history.error);
   }
 
   try {
-    const client = new AzureOpenAI({
+    const azure = new AzureOpenAI({
       endpoint: requiredEnv("AZURE_OPENAI_ENDPOINT"),
       apiKey: requiredEnv("AZURE_OPENAI_API_KEY"),
       deployment: requiredEnv("AZURE_OPENAI_DEPLOYMENT"),
       apiVersion: requiredEnv("AZURE_OPENAI_API_VERSION"),
     });
 
-    const completion = await client.chat.completions.create({
+    const completion = await azure.chat.completions.create({
       model: requiredEnv("AZURE_OPENAI_DEPLOYMENT"),
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
@@ -100,9 +116,26 @@ export async function POST(req: NextRequest) {
     const answer = completion.choices[0]?.message?.content?.trim();
     if (!answer) throw new Error("Empty completion from Azure OpenAI");
 
+    logRequest(client, {
+      outcome: "ok",
+      status: 200,
+      latencyMs: Date.now() - startedAt,
+      messageChars: message.length,
+      historyMessages: history.messages.length,
+      promptTokens: completion.usage?.prompt_tokens,
+      completionTokens: completion.usage?.completion_tokens,
+      cachedTokens: completion.usage?.prompt_tokens_details?.cached_tokens,
+    });
     return reply({ reply: answer }, 200);
   } catch (error) {
     console.error("[api/chat] upstream failure", error);
+    logRequest(client, {
+      outcome: "upstream_error",
+      status: 502,
+      latencyMs: Date.now() - startedAt,
+      messageChars: message.length,
+      historyMessages: history.messages.length,
+    });
     return reply({ reply: FALLBACK_REPLY }, 502);
   }
 }
