@@ -34,6 +34,9 @@ Open [http://localhost:3000](http://localhost:3000).
 npm test
 ```
 
+`npm run lint`, `npm run typecheck`, `npm test` and `npm run build` all run in
+CI on every push and PR to `main` and `develop`. None of them need secrets.
+
 Unit tests for `src/lib/` via the Node test runner - no extra dependencies.
 
 ## Evals

@@ -107,7 +107,9 @@ No npm package is published between them - the boundary is HTTP. A client wrappe
       is metadata-only today, and content sampling is a privacy tradeoff.
 - [ ] Move rate limiting to shared storage if this ever runs on >1 instance.
 - [ ] Set semantic cache similarity threshold and TTL policy.
-- [ ] Set up Promptfoo config and integrate into CI (e.g., run evals on every prompt change / PR).
+- [x] CI on every push/PR: lint, typecheck, test, build (no secrets needed).
+- [ ] Add the Promptfoo eval run to CI - needs Azure credentials as repo
+      secrets and a filled-in golden dataset first.
 - [x] Write the system prompt (`src/lib/system-prompt.ts`) — scoping + grounding.
 - [ ] Replace the placeholder content in `src/lib/about-me.ts` with real details.
 - [ ] Set up Azure AI Content Safety on the Foundry deployment.
