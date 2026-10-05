@@ -9,7 +9,8 @@ See [docs/plan.md](docs/plan.md) for the full design.
 ## Structure
 
 - `src/app/api/chat/route.ts` — chat endpoint (single-turn, no RAG yet)
-- `src/lib/system-prompt.ts` — scoping + grounding guardrail prompt
+- `src/lib/system-prompt.ts` — scoping + grounding guardrail prompt, plus its
+  content-derived version
 - `src/lib/cors.ts` — origin allowlist
 - `src/lib/rate-limit.ts` — per-IP sliding window
 - `src/lib/history.ts` — conversation history validation + trimming

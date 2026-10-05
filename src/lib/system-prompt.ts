@@ -1,4 +1,6 @@
-import { ABOUT_ME } from "./about-me";
+import { createHash } from "node:crypto";
+
+import { ABOUT_ME } from "./about-me.ts";
 
 /**
  * Guardrail layer 1: prompt scoping. Boxes the assistant into the owner's
@@ -34,3 +36,19 @@ fellow engineers - about the site owner's professional background.
 ## Context
 ${ABOUT_ME}
 `.trim();
+
+/**
+ * Prompt/context versioning (plan section 7). Derived from the prompt text
+ * rather than hand-maintained: a manual version number gets forgotten on
+ * exactly the edit that mattered, and then eval results are silently
+ * attributed to the wrong prompt. Hashing the real string makes that
+ * impossible - any change to this file or to `about-me.ts` moves the version.
+ *
+ * Logged with every request, so a shift in answer quality can be traced to
+ * the prompt revision that caused it.
+ */
+export function fingerprint(text: string): string {
+  return createHash("sha256").update(text).digest("hex").slice(0, 12);
+}
+
+export const SYSTEM_PROMPT_VERSION = fingerprint(SYSTEM_PROMPT);

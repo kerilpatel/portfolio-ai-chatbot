@@ -15,6 +15,8 @@ export type RequestLog = {
   outcome: Outcome;
   status: number;
   latencyMs: number;
+  /** Which prompt revision produced this - see `SYSTEM_PROMPT_VERSION`. */
+  promptVersion?: string;
   /** Length only - never the text itself. */
   messageChars?: number;
   historyMessages?: number;

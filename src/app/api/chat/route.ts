@@ -6,7 +6,7 @@ import { corsHeaders } from "@/lib/cors";
 import { parseHistory } from "@/lib/history";
 import { logRequest } from "@/lib/observability";
 import { checkRateLimit, clientKey } from "@/lib/rate-limit";
-import { SYSTEM_PROMPT } from "@/lib/system-prompt";
+import { SYSTEM_PROMPT, SYSTEM_PROMPT_VERSION } from "@/lib/system-prompt";
 
 /** Shown instead of a raw error - see docs/plan.md section 4. */
 const FALLBACK_REPLY =
@@ -120,6 +120,7 @@ export async function POST(req: NextRequest) {
       outcome: "ok",
       status: 200,
       latencyMs: Date.now() - startedAt,
+      promptVersion: SYSTEM_PROMPT_VERSION,
       messageChars: message.length,
       historyMessages: history.messages.length,
       promptTokens: completion.usage?.prompt_tokens,
@@ -133,6 +134,7 @@ export async function POST(req: NextRequest) {
       outcome: "upstream_error",
       status: 502,
       latencyMs: Date.now() - startedAt,
+      promptVersion: SYSTEM_PROMPT_VERSION,
       messageChars: message.length,
       historyMessages: history.messages.length,
     });
