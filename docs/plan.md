@@ -105,6 +105,8 @@ No npm package is published between them - the boundary is HTTP. A client wrappe
 - [x] Structured per-request logging: latency, tokens, outcome (section 7).
 - [x] Prompt/context versioning: hash of the live prompt, logged per request
       (section 7). Derived, not hand-maintained, so it can't go stale.
+- [x] Streaming responses, opt-in via `stream: true` (section 7). Framing is
+      unit-tested; the live Azure stream still needs credentials to confirm.
 - [ ] Decide whether to sample conversation content for online eval - the log
       is metadata-only today, and content sampling is a privacy tradeoff.
 - [ ] Move rate limiting to shared storage if this ever runs on >1 instance.

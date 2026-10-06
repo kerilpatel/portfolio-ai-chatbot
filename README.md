@@ -15,6 +15,7 @@ See [docs/plan.md](docs/plan.md) for the full design.
 - `src/lib/rate-limit.ts` — per-IP sliding window
 - `src/lib/history.ts` — conversation history validation + trimming
 - `src/lib/observability.ts` — one structured log line per request
+- `src/lib/stream.ts` — SSE framing for streamed replies
 - `src/lib/about-me.ts` — always-in-context summary (placeholder content)
 - `eval/` — Promptfoo config + golden Q&A dataset
 - `docs/plan.md` — architecture and open questions
@@ -63,6 +64,12 @@ with a `Retry-After` header and a friendly `reply` in the normal response
 shape, so the UI can render it as a chat message rather than an error. The
 window is in-memory, so it resets on redeploy and is per-instance.
 
+Pass `"stream": true` to get `text/event-stream` instead: one
+`data: {"delta":"..."}` frame per token, terminated by `data: [DONE]`. Because
+the `200` is already sent, a failure partway through arrives in-band as a
+`data: {"error":"..."}` frame rather than a status code. Omitting the field
+keeps the plain JSON response.
+
 CORS is an allowlist: set `ALLOWED_ORIGIN` to a comma-separated list of
 origins. A request from anywhere else is still served, but without the
 `Access-Control-Allow-Origin` header, so browsers block it. The header is
@@ -73,5 +80,5 @@ Every response sends `Vary: Origin` so shared caches stay correct.
 
 Walking skeleton: a real single-turn Azure OpenAI call, grounded in
 `src/lib/about-me.ts`, reachable cross-origin from the site, with per-IP rate
-limiting, multi-turn history and structured request logging. No RAG, semantic
-cache, or streaming yet. See [docs/plan.md](docs/plan.md#9-open-questions--next-steps).
+limiting, multi-turn history, optional streaming and structured request
+logging. No RAG or semantic cache yet. See [docs/plan.md](docs/plan.md#9-open-questions--next-steps).

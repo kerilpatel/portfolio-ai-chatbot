@@ -6,6 +6,7 @@ import { corsHeaders } from "@/lib/cors";
 import { parseHistory } from "@/lib/history";
 import { logRequest } from "@/lib/observability";
 import { checkRateLimit, clientKey } from "@/lib/rate-limit";
+import { newStats, streamSSE } from "@/lib/stream";
 import { SYSTEM_PROMPT, SYSTEM_PROMPT_VERSION } from "@/lib/system-prompt";
 
 /** Shown instead of a raw error - see docs/plan.md section 4. */
@@ -73,8 +74,9 @@ export async function POST(req: NextRequest) {
 
   let message: unknown;
   let rawHistory: unknown;
+  let wantsStream: unknown;
   try {
-    ({ message, history: rawHistory } = await req.json());
+    ({ message, history: rawHistory, stream: wantsStream } = await req.json());
   } catch {
     return bad("Invalid JSON body");
   }
@@ -93,6 +95,9 @@ export async function POST(req: NextRequest) {
   if (!history.ok) {
     return bad(history.error);
   }
+  if (wantsStream !== undefined && typeof wantsStream !== "boolean") {
+    return bad("`stream` must be a boolean");
+  }
 
   try {
     const azure = new AzureOpenAI({
@@ -102,16 +107,65 @@ export async function POST(req: NextRequest) {
       apiVersion: requiredEnv("AZURE_OPENAI_API_VERSION"),
     });
 
-    const completion = await azure.chat.completions.create({
+    const request = {
       model: requiredEnv("AZURE_OPENAI_DEPLOYMENT"),
       messages: [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system" as const, content: SYSTEM_PROMPT },
         ...history.messages,
-        { role: "user", content: message },
+        { role: "user" as const, content: message },
       ],
       temperature: 0.3,
       max_tokens: 400,
-    });
+    };
+
+    if (wantsStream === true) {
+      const stats = newStats();
+      const upstream = await azure.chat.completions.create({
+        ...request,
+        stream: true,
+        // Without this the final chunk omits usage and token spend is unknown.
+        stream_options: { include_usage: true },
+      });
+
+      const encoder = new TextEncoder();
+      const frames = streamSSE(upstream, stats, FALLBACK_REPLY);
+
+      const body = new ReadableStream({
+        async pull(controller) {
+          const { value, done } = await frames.next();
+          if (done) {
+            // Logged here rather than up front, so latency covers the whole
+            // stream and the token counts have arrived.
+            logRequest(client, {
+              outcome: stats.failed ? "upstream_error" : "ok",
+              status: 200,
+              latencyMs: Date.now() - startedAt,
+              promptVersion: SYSTEM_PROMPT_VERSION,
+              messageChars: message.length,
+              historyMessages: history.messages.length,
+              promptTokens: stats.promptTokens,
+              completionTokens: stats.completionTokens,
+              cachedTokens: stats.cachedTokens,
+            });
+            controller.close();
+            return;
+          }
+          controller.enqueue(encoder.encode(value));
+        },
+      });
+
+      return new NextResponse(body, {
+        status: 200,
+        headers: {
+          ...cors,
+          "Content-Type": "text/event-stream; charset=utf-8",
+          "Cache-Control": "no-cache, no-transform",
+          Connection: "keep-alive",
+        },
+      });
+    }
+
+    const completion = await azure.chat.completions.create(request);
 
     const answer = completion.choices[0]?.message?.content?.trim();
     if (!answer) throw new Error("Empty completion from Azure OpenAI");
