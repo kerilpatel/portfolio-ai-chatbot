@@ -95,7 +95,10 @@ No npm package is published between them - the boundary is HTTP. A client wrappe
 
 ## 9. Open Questions / Next Steps
 
-- [ ] Design the golden Q&A dataset for offline evals (expand past the 3 placeholder rows).
+- [x] Golden dataset structure + the guardrail half: 19 off-topic, injection,
+      unknown-fact and identity rows, which need no personal content.
+- [ ] Add the factual rows to the golden dataset - blocked on real `about-me`
+      content, since there is nothing yet to assert answers against.
 - [ ] Define the "About Me" structured summary format for always-in-context data.
 - [x] CORS allowlist + `OPTIONS` preflight on `/api/chat` (section 8).
 - [x] Per-visitor rate limiting, in-memory (section 5, layer 4).

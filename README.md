@@ -44,8 +44,14 @@ Unit tests for `src/lib/` via the Node test runner - no extra dependencies.
 ## Evals
 
 ```bash
+npm run dev                                   # the suite calls the live endpoint
 npx promptfoo eval -c eval/promptfooconfig.yaml
 ```
+
+The dataset is grouped by `category`: `off_topic`, `injection`, `unknown` and
+`identity` rows test guardrail behaviour and need no personal content, while
+`factual` rows depend on `src/lib/about-me.ts` being filled in. Running the
+suite needs Azure credentials, since it exercises the real endpoint.
 
 ## API
 
