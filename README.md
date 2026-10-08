@@ -9,6 +9,7 @@ See [docs/plan.md](docs/plan.md) for the full design.
 ## Structure
 
 - `src/app/api/chat/route.ts` — chat endpoint (single-turn, no RAG yet)
+- `src/app/api/health/route.ts` — health probe for deployment
 - `src/lib/system-prompt.ts` — scoping + grounding guardrail prompt, plus its
   content-derived version
 - `src/lib/cors.ts` — origin allowlist
@@ -75,6 +76,10 @@ Pass `"stream": true` to get `text/event-stream` instead: one
 the `200` is already sent, a failure partway through arrives in-band as a
 `data: {"error":"..."}` frame rather than a status code. Omitting the field
 keeps the plain JSON response.
+
+`GET /api/health` returns `{ status, promptVersion, configured, missing,
+uptimeSeconds }` for a deployment probe. `configured` is false when an Azure
+setting is absent, and `missing` names which — names only, never values.
 
 CORS is an allowlist: set `ALLOWED_ORIGIN` to a comma-separated list of
 origins. A request from anywhere else is still served, but without the

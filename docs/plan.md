@@ -122,4 +122,5 @@ No npm package is published between them - the boundary is HTTP. A client wrappe
 - [ ] Set up Azure AI Content Safety on the Foundry deployment.
 - [ ] Set up cost/budget alerts in Azure.
 - [ ] Implement `src/lib/rag` and `src/lib/cache` (not yet created) against Azure AI Search.
+- [x] Health endpoint (`GET /api/health`) for the deployment probe.
 - [ ] Decide on final hosting choice for the proxy: Azure Static Web App vs. Azure App Service vs. Azure Functions.
