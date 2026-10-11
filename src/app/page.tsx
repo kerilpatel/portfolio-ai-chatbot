@@ -1,70 +1,40 @@
-import Image from "next/image";
-
 import styles from "./page.module.css";
 
+/**
+ * This service has no user-facing UI - the chat widget lives in
+ * portfolio-website and calls the API over HTTP. The page exists so that
+ * anyone who reaches the deployed root gets an explanation rather than a 404
+ * or, worse, the framework's starter template.
+ */
 export default function Home() {
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>
-            To get started, edit the{" "}
-            <code className={styles.code}>page.tsx</code> file.
-          </h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <main className={styles.main}>
+      <h1 className={styles.title}>portfolio-ai-chatbot</h1>
+
+      <p className={styles.lead}>
+        Backend service for the &ldquo;Ask Me Anything&rdquo; chatbot on my
+        portfolio site. It proxies requests to Azure AI Foundry and is the only
+        place the model credentials live.
+      </p>
+
+      <p className={styles.lead}>
+        There is no interface here. The chat widget is part of the portfolio
+        site itself and talks to this service over HTTP.
+      </p>
+
+      <dl className={styles.endpoints}>
+        <dt>
+          <code>POST /api/chat</code>
+        </dt>
+        <dd>Ask a question. Optionally streamed.</dd>
+
+        <dt>
+          <code>
+            <a href="/api/health">GET /api/health</a>
+          </code>
+        </dt>
+        <dd>Deployment probe.</dd>
+      </dl>
+    </main>
   );
 }
