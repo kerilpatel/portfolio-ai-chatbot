@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { AzureOpenAI } from "openai";
 
+import { azureConfig } from "@/lib/config";
 import { corsHeaders } from "@/lib/cors";
 import { parseHistory } from "@/lib/history";
 import { logRequest } from "@/lib/observability";
@@ -21,12 +22,6 @@ const RATE_LIMITED_REPLY =
   "dropping me an email to learn more?";
 
 const MAX_MESSAGE_LENGTH = 1000;
-
-function requiredEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`Missing required env var: ${name}`);
-  return value;
-}
 
 /** Preflight. Allow headers come from the allowlist, so a rejected origin
  *  still gets a 204 - just without permission to read the real response. */
@@ -99,16 +94,28 @@ export async function POST(req: NextRequest) {
     return bad("`stream` must be a boolean");
   }
 
-  try {
-    const azure = new AzureOpenAI({
-      endpoint: requiredEnv("AZURE_OPENAI_ENDPOINT"),
-      apiKey: requiredEnv("AZURE_OPENAI_API_KEY"),
-      deployment: requiredEnv("AZURE_OPENAI_DEPLOYMENT"),
-      apiVersion: requiredEnv("AZURE_OPENAI_API_VERSION"),
+  // Read before the try: a missing setting is a broken deploy, and logging it
+  // as an upstream failure would make the two indistinguishable in the logs -
+  // one needs a redeploy, the other a retry.
+  const azureEnv = azureConfig();
+  if (!azureEnv.ok) {
+    console.error("[api/chat] missing config:", azureEnv.missing.join(", "));
+    logRequest(client, {
+      outcome: "misconfigured",
+      status: 502,
+      latencyMs: Date.now() - startedAt,
+      promptVersion: SYSTEM_PROMPT_VERSION,
+      messageChars: message.length,
+      historyMessages: history.messages.length,
     });
+    return reply({ reply: FALLBACK_REPLY }, 502);
+  }
+
+  try {
+    const azure = new AzureOpenAI(azureEnv.config);
 
     const request = {
-      model: requiredEnv("AZURE_OPENAI_DEPLOYMENT"),
+      model: azureEnv.config.deployment,
       messages: [
         { role: "system" as const, content: SYSTEM_PROMPT },
         ...history.messages,

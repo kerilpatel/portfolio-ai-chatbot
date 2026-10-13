@@ -9,7 +9,14 @@ import { createHash } from "node:crypto";
  * hashed rather than logged as a raw IP. Sampling real conversation content
  * for online eval is a separate decision with its own privacy tradeoff.
  */
-export type Outcome = "ok" | "bad_request" | "rate_limited" | "upstream_error";
+export type Outcome =
+  | "ok"
+  | "bad_request"
+  | "rate_limited"
+  /** This deployment is missing its settings - distinct from Azure failing,
+   *  because the fix is a redeploy rather than a retry. */
+  | "misconfigured"
+  | "upstream_error";
 
 export type RequestLog = {
   outcome: Outcome;
