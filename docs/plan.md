@@ -124,4 +124,6 @@ No npm package is published between them - the boundary is HTTP. A client wrappe
 - [ ] Set up cost/budget alerts in Azure.
 - [ ] Implement `src/lib/rag` and `src/lib/cache` (not yet created) against Azure AI Search.
 - [x] Health endpoint (`GET /api/health`) for the deployment probe.
+- [x] Explicit upstream timeout + retry cap, so a hung Azure call cannot
+      outlive the hosting platform's own request cutoff (section 7).
 - [ ] Decide on final hosting choice for the proxy: Azure Static Web App vs. Azure App Service vs. Azure Functions.

@@ -11,6 +11,25 @@ export const REQUIRED_VARS = [
   "AZURE_OPENAI_API_VERSION",
 ] as const;
 
+/**
+ * The SDK defaults to a 10 minute timeout and retries timeouts twice, so an
+ * unanswered request could hold a visitor for roughly half an hour. Azure App
+ * Service would cut the connection at around 230s first, meaning the visitor
+ * sees a platform error page rather than the contact-redirect reply - the
+ * graceful fallback would be invisible exactly when it is needed.
+ *
+ * 30s is generous for a reply capped at 400 tokens, and one retry covers a
+ * transient blip while keeping the worst case near 60s, well inside the
+ * platform limit. Override per environment with AZURE_OPENAI_TIMEOUT_MS.
+ */
+const DEFAULT_TIMEOUT_MS = 30_000;
+export const MAX_RETRIES = 1;
+
+export function timeoutMs(): number {
+  const raw = Number(process.env.AZURE_OPENAI_TIMEOUT_MS);
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_TIMEOUT_MS;
+}
+
 export type AzureConfig = {
   endpoint: string;
   apiKey: string;

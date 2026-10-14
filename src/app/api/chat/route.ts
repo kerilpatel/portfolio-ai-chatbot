@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { AzureOpenAI } from "openai";
 
-import { azureConfig } from "@/lib/config";
+import { MAX_RETRIES, azureConfig, timeoutMs } from "@/lib/config";
 import { corsHeaders } from "@/lib/cors";
 import { parseHistory } from "@/lib/history";
 import { logRequest } from "@/lib/observability";
@@ -112,7 +112,11 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const azure = new AzureOpenAI(azureEnv.config);
+    const azure = new AzureOpenAI({
+      ...azureEnv.config,
+      timeout: timeoutMs(),
+      maxRetries: MAX_RETRIES,
+    });
 
     const request = {
       model: azureEnv.config.deployment,
