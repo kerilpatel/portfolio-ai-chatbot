@@ -5,7 +5,7 @@ import { AzureOpenAI } from "openai";
 import { MAX_RETRIES, azureConfig, timeoutMs } from "@/lib/config";
 import { corsHeaders } from "@/lib/cors";
 import { parseHistory } from "@/lib/history";
-import { logRequest } from "@/lib/observability";
+import { logRequest, upstreamFields } from "@/lib/observability";
 import { checkRateLimit, clientKey } from "@/lib/rate-limit";
 import { newStats, streamSSE } from "@/lib/stream";
 import { SYSTEM_PROMPT, SYSTEM_PROMPT_VERSION } from "@/lib/system-prompt";
@@ -157,6 +157,7 @@ export async function POST(req: NextRequest) {
               promptTokens: stats.promptTokens,
               completionTokens: stats.completionTokens,
               cachedTokens: stats.cachedTokens,
+              ...(stats.failed ? upstreamFields(stats.error) : {}),
             });
             controller.close();
             return;
@@ -202,6 +203,7 @@ export async function POST(req: NextRequest) {
       promptVersion: SYSTEM_PROMPT_VERSION,
       messageChars: message.length,
       historyMessages: history.messages.length,
+      ...upstreamFields(error),
     });
     return reply({ reply: FALLBACK_REPLY }, 502);
   }

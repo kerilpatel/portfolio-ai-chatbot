@@ -106,7 +106,8 @@ No npm package is published between them - the boundary is HTTP. A client wrappe
       (section 7). Roles other than user/assistant are rejected.
 - [x] Add a test runner (`npm test`, Node built-in) covering `src/lib/`.
 - [x] Structured per-request logging: latency, tokens, outcome (section 7).
-      Outcomes distinguish a misconfigured deploy from an upstream failure.
+      Outcomes distinguish a misconfigured deploy from an upstream failure,
+      and a failure carries the upstream status/code/param that caused it.
 - [x] Prompt/context versioning: hash of the live prompt, logged per request
       (section 7). Derived, not hand-maintained, so it can't go stale.
 - [x] Streaming responses, opt-in via `stream: true` (section 7). Framing is

@@ -31,7 +31,35 @@ export type RequestLog = {
   completionTokens?: number;
   /** Tokens served from Azure OpenAI prompt caching (section 4). */
   cachedTokens?: number;
+  /** Why the upstream call failed - see `upstreamFields`. */
+  upstreamStatus?: number;
+  upstreamCode?: string;
+  upstreamParam?: string;
 };
+
+/**
+ * Pulls the diagnosable parts out of an Azure SDK error.
+ *
+ * Status, code and param only - never the error message, which is free text
+ * and could in principle echo part of the request. These three are enough to
+ * name the actual fault: 401 is a bad key, 404 a wrong deployment name, 429
+ * Azure-side throttling, and a 400 naming `max_tokens` means the deployed
+ * model wants `max_completion_tokens` instead.
+ */
+export function upstreamFields(error: unknown): {
+  upstreamStatus?: number;
+  upstreamCode?: string;
+  upstreamParam?: string;
+} {
+  if (typeof error !== "object" || error === null) return {};
+  const { status, code, param } = error as Record<string, unknown>;
+
+  return {
+    upstreamStatus: typeof status === "number" ? status : undefined,
+    upstreamCode: typeof code === "string" ? code : undefined,
+    upstreamParam: typeof param === "string" ? param : undefined,
+  };
+}
 
 /** Truncated digest: correlates requests from one visitor without storing the
  *  IP. Not reversible to an address in practice. */

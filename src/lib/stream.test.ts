@@ -107,3 +107,21 @@ describe("streamSSE", () => {
     assert.ok(stats.failed, "partial replies must be flagged for the log");
   });
 });
+
+describe("streamSSE error capture", () => {
+  it("keeps the error so the caller can log why it failed", async () => {
+    const boom = { status: 429, code: "rate_limit_exceeded" };
+    async function* breaks(): AsyncIterable<StreamChunk> {
+      yield* text("partial");
+      throw boom;
+    }
+    const { stats } = await collect(breaks());
+    assert.equal(stats.failed, true);
+    assert.equal(stats.error, boom);
+  });
+
+  it("leaves error unset on success", async () => {
+    const { stats } = await collect(from(text("fine")));
+    assert.equal(stats.error, undefined);
+  });
+});

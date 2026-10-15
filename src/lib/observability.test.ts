@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it, mock } from "node:test";
 
-import { hashClientKey, logRequest } from "./observability.ts";
+import { hashClientKey, logRequest, upstreamFields } from "./observability.ts";
 
 describe("hashClientKey", () => {
   it("is stable for the same key", () => {
@@ -75,5 +75,67 @@ describe("logRequest", () => {
     );
     assert.equal(entry.promptTokens, 500);
     assert.equal(entry.cachedTokens, 448);
+  });
+});
+
+describe("upstreamFields", () => {
+  it("extracts status, code and param from an SDK error", () => {
+    const fields = upstreamFields({
+      status: 400,
+      code: "unsupported_parameter",
+      param: "max_tokens",
+    });
+    assert.deepEqual(fields, {
+      upstreamStatus: 400,
+      upstreamCode: "unsupported_parameter",
+      upstreamParam: "max_tokens",
+    });
+  });
+
+  // The message is free text and could echo part of the request, so it must
+  // never reach the log.
+  it("never carries the error message", () => {
+    const fields = upstreamFields({
+      status: 400,
+      message: "Invalid value for 'messages': What is my salary?",
+    });
+    assert.ok(!JSON.stringify(fields).includes("salary"));
+  });
+
+  it("copes with a plain Error, a string and null", () => {
+    assert.deepEqual(upstreamFields(new Error("boom")), {
+      upstreamStatus: undefined,
+      upstreamCode: undefined,
+      upstreamParam: undefined,
+    });
+    assert.deepEqual(upstreamFields("nope"), {});
+    assert.deepEqual(upstreamFields(null), {});
+    assert.deepEqual(upstreamFields(undefined), {});
+  });
+
+  it("ignores fields of the wrong type", () => {
+    const fields = upstreamFields({ status: "400", code: 500, param: {} });
+    assert.deepEqual(fields, {
+      upstreamStatus: undefined,
+      upstreamCode: undefined,
+      upstreamParam: undefined,
+    });
+  });
+
+  it("drops undefined fields when logged", () => {
+    const lines: string[] = [];
+    const spy = mock.method(console, "log", (line: string) => lines.push(line));
+    try {
+      logRequest("1.1.1.1", {
+        outcome: "upstream_error",
+        status: 502,
+        latencyMs: 5,
+        ...upstreamFields(new Error("boom")),
+      });
+    } finally {
+      spy.mock.restore();
+    }
+    const entry = JSON.parse(lines[0]);
+    assert.ok(!("upstreamStatus" in entry));
   });
 });

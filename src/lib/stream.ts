@@ -27,6 +27,9 @@ export type StreamStats = {
   completionTokens?: number;
   cachedTokens?: number;
   failed: boolean;
+  /** The caught error, so the caller can log why without this module needing
+   *  to know the SDK's error shape. */
+  error?: unknown;
 };
 
 export function newStats(): StreamStats {
@@ -71,8 +74,9 @@ export async function* streamSSE(
     if (stats.text.length === 0) {
       throw new Error("Empty stream from Azure OpenAI");
     }
-  } catch {
+  } catch (error) {
     stats.failed = true;
+    stats.error = error;
     yield event({ error: fallback });
   }
 
