@@ -32,9 +32,10 @@ export function corsHeaders(origin: string | null): Record<string, string> {
     headers["Access-Control-Allow-Methods"] = "POST, OPTIONS";
     headers["Access-Control-Allow-Headers"] = "Content-Type";
     headers["Access-Control-Max-Age"] = "86400";
-    // Retry-After is not CORS-safelisted, so without this the chat UI cannot
-    // read it off a 429 to show a countdown.
-    headers["Access-Control-Expose-Headers"] = "Retry-After";
+    // None of these are CORS-safelisted, so without this the chat UI receives
+    // them but cannot read them - no countdown, no remaining-questions hint.
+    headers["Access-Control-Expose-Headers"] =
+      "Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset";
   }
 
   return headers;

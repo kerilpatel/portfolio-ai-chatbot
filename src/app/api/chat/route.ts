@@ -6,7 +6,7 @@ import { MAX_RETRIES, azureConfig, timeoutMs } from "@/lib/config";
 import { corsHeaders } from "@/lib/cors";
 import { parseHistory } from "@/lib/history";
 import { logRequest, upstreamFields } from "@/lib/observability";
-import { checkRateLimit, clientKey } from "@/lib/rate-limit";
+import { checkRateLimit, clientKey, rateLimitHeaders } from "@/lib/rate-limit";
 import { newStats, streamSSE } from "@/lib/stream";
 import { SYSTEM_PROMPT, SYSTEM_PROMPT_VERSION } from "@/lib/system-prompt";
 
@@ -35,7 +35,16 @@ export async function OPTIONS(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const startedAt = Date.now();
   const client = clientKey(req.headers);
-  const cors = corsHeaders(req.headers.get("origin"));
+
+  // Checked before the body is even read, so malformed spam still counts.
+  const limit = checkRateLimit(client);
+
+  // Every response carries the allowance, including the 400s - the request
+  // was counted, so the client should see the cost of it.
+  const cors = {
+    ...corsHeaders(req.headers.get("origin")),
+    ...rateLimitHeaders(limit),
+  };
 
   const reply = (body: unknown, status: number) =>
     NextResponse.json(body, { status, headers: cors });
@@ -50,8 +59,6 @@ export async function POST(req: NextRequest) {
     return reply({ error }, 400);
   };
 
-  // Checked before the body is even read, so malformed spam still counts.
-  const limit = checkRateLimit(client);
   if (!limit.allowed) {
     logRequest(client, {
       outcome: "rate_limited",

@@ -8,7 +8,7 @@
  * to blunt a script hammering the endpoint, not to be exact.
  */
 const WINDOW_MS = 15 * 60 * 1000;
-const MAX_REQUESTS = 20;
+export const MAX_REQUESTS = 20;
 
 /** Full sweep cadence, to stop the map growing without bound. */
 const SWEEP_INTERVAL_MS = 60 * 1000;
@@ -46,8 +46,22 @@ function sweep(now: number) {
 }
 
 export type RateLimitResult =
-  | { allowed: true; remaining: number }
-  | { allowed: false; retryAfterSeconds: number };
+  /** `resetSeconds` is when the oldest hit ages out and the allowance starts
+   *  recovering - surfaced so the UI can warn before the wall, rather than
+   *  only reacting once the visitor has hit it. */
+  | { allowed: true; remaining: number; resetSeconds: number }
+  | { allowed: false; retryAfterSeconds: number; resetSeconds: number };
+
+/** Standard rate-limit headers, so the client can show its own allowance. */
+export function rateLimitHeaders(
+  result: RateLimitResult,
+): Record<string, string> {
+  return {
+    "X-RateLimit-Limit": String(MAX_REQUESTS),
+    "X-RateLimit-Remaining": String(result.allowed ? result.remaining : 0),
+    "X-RateLimit-Reset": String(result.resetSeconds),
+  };
+}
 
 export function checkRateLimit(key: string): RateLimitResult {
   const now = Date.now();
@@ -55,22 +69,29 @@ export function checkRateLimit(key: string): RateLimitResult {
 
   const recent = (hits.get(key) ?? []).filter((t) => now - t < WINDOW_MS);
 
+  // When the oldest hit ages out, a slot frees up. Always at least 1s.
+  const resetIn = (timestamps: number[]) =>
+    timestamps.length === 0
+      ? Math.ceil(WINDOW_MS / 1000)
+      : Math.max(1, Math.ceil((timestamps[0] + WINDOW_MS - now) / 1000));
+
   if (recent.length >= MAX_REQUESTS) {
     hits.set(key, recent);
-    const oldest = recent[0];
+    const retryAfterSeconds = resetIn(recent);
     return {
       allowed: false,
-      // When the oldest hit ages out, a slot frees up. Always at least 1s.
-      retryAfterSeconds: Math.max(
-        1,
-        Math.ceil((oldest + WINDOW_MS - now) / 1000),
-      ),
+      retryAfterSeconds,
+      resetSeconds: retryAfterSeconds,
     };
   }
 
   recent.push(now);
   hits.set(key, recent);
-  return { allowed: true, remaining: MAX_REQUESTS - recent.length };
+  return {
+    allowed: true,
+    remaining: MAX_REQUESTS - recent.length,
+    resetSeconds: resetIn(recent),
+  };
 }
 
 /** Test seam - the module-level map otherwise persists across cases. */

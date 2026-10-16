@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { beforeEach, describe, it } from "node:test";
 
-import { __resetRateLimit, checkRateLimit, clientKey } from "./rate-limit.ts";
+import {
+  MAX_REQUESTS,
+  __resetRateLimit,
+  checkRateLimit,
+  clientKey,
+  rateLimitHeaders,
+} from "./rate-limit.ts";
 
 const headers = (value?: string) =>
   new Headers(value ? { "x-forwarded-for": value } : {});
@@ -46,5 +52,42 @@ describe("checkRateLimit", () => {
   it("counts down the remaining allowance", () => {
     const first = checkRateLimit("3.3.3.3");
     assert.ok(first.allowed && first.remaining === 19);
+  });
+});
+
+describe("rateLimitHeaders", () => {
+  beforeEach(() => __resetRateLimit());
+
+  it("reports the allowance counting down", () => {
+    const first = rateLimitHeaders(checkRateLimit("8.8.8.1"));
+    assert.equal(first["X-RateLimit-Limit"], String(MAX_REQUESTS));
+    assert.equal(first["X-RateLimit-Remaining"], String(MAX_REQUESTS - 1));
+
+    const second = rateLimitHeaders(checkRateLimit("8.8.8.1"));
+    assert.equal(second["X-RateLimit-Remaining"], String(MAX_REQUESTS - 2));
+  });
+
+  it("reports zero remaining once blocked", () => {
+    for (let i = 0; i < MAX_REQUESTS; i++) checkRateLimit("8.8.8.2");
+    const headers = rateLimitHeaders(checkRateLimit("8.8.8.2"));
+    assert.equal(headers["X-RateLimit-Remaining"], "0");
+  });
+
+  it("always reports a positive reset", () => {
+    const headers = rateLimitHeaders(checkRateLimit("8.8.8.3"));
+    assert.ok(Number(headers["X-RateLimit-Reset"]) > 0);
+  });
+
+  // A blocked caller's reset and Retry-After describe the same moment, so they
+  // must not disagree.
+  it("agrees with Retry-After when blocked", () => {
+    for (let i = 0; i < MAX_REQUESTS; i++) checkRateLimit("8.8.8.4");
+    const result = checkRateLimit("8.8.8.4");
+    assert.equal(result.allowed, false);
+    assert.ok(!result.allowed);
+    assert.equal(
+      rateLimitHeaders(result)["X-RateLimit-Reset"],
+      String(result.retryAfterSeconds),
+    );
   });
 });

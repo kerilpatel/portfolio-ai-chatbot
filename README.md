@@ -72,6 +72,11 @@ with a `Retry-After` header and a friendly `reply` in the normal response
 shape, so the UI can render it as a chat message rather than an error. The
 window is in-memory, so it resets on redeploy and is per-instance.
 
+Every response carries `X-RateLimit-Limit`, `X-RateLimit-Remaining` and
+`X-RateLimit-Reset` (seconds), so the UI can warn before the wall instead of
+only reacting after it. All are listed in `Access-Control-Expose-Headers`,
+without which the browser receives them but cannot read them.
+
 Pass `"stream": true` to get `text/event-stream` instead: one
 `data: {"delta":"..."}` frame per token, terminated by `data: [DONE]`. Because
 the `200` is already sent, a failure partway through arrives in-band as a

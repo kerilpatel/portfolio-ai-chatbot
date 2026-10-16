@@ -35,12 +35,25 @@ describe("cors", () => {
     assert.equal(isAllowedOrigin("https://a.com"), false);
   });
 
-  // Retry-After is not CORS-safelisted, so the UI cannot read it without this.
-  it("exposes Retry-After to the browser", () => {
+  // None of these are CORS-safelisted, so the UI cannot read them without
+  // being granted access explicitly.
+  it("exposes the rate-limit headers to the browser", () => {
     process.env.ALLOWED_ORIGIN = "https://a.com";
-    assert.equal(
-      corsHeaders("https://a.com")["Access-Control-Expose-Headers"],
+    const exposed =
+      corsHeaders("https://a.com")["Access-Control-Expose-Headers"];
+    for (const header of [
       "Retry-After",
-    );
+      "X-RateLimit-Limit",
+      "X-RateLimit-Remaining",
+      "X-RateLimit-Reset",
+    ]) {
+      assert.ok(exposed.includes(header), `should expose ${header}`);
+    }
+  });
+
+  it("exposes nothing to a refused origin", () => {
+    process.env.ALLOWED_ORIGIN = "https://a.com";
+    const headers = corsHeaders("https://evil.example");
+    assert.equal(headers["Access-Control-Expose-Headers"], undefined);
   });
 });
