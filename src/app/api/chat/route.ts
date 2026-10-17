@@ -6,7 +6,11 @@ import { MAX_RETRIES, azureConfig, timeoutMs } from "@/lib/config";
 import { corsHeaders } from "@/lib/cors";
 import { parseHistory } from "@/lib/history";
 import { logRequest, upstreamFields } from "@/lib/observability";
-import { checkRateLimit, clientKey, rateLimitHeaders } from "@/lib/rate-limit";
+import {
+  checkRateLimit,
+  identifyClient,
+  rateLimitHeaders,
+} from "@/lib/rate-limit";
 import { newStats, streamSSE } from "@/lib/stream";
 import { SYSTEM_PROMPT, SYSTEM_PROMPT_VERSION } from "@/lib/system-prompt";
 
@@ -34,7 +38,7 @@ export async function OPTIONS(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const startedAt = Date.now();
-  const client = clientKey(req.headers);
+  const { key: client, source: clientKeySource } = identifyClient(req.headers);
 
   // Checked before the body is even read, so malformed spam still counts.
   const limit = checkRateLimit(client);
@@ -55,6 +59,7 @@ export async function POST(req: NextRequest) {
       outcome: "bad_request",
       status: 400,
       latencyMs: Date.now() - startedAt,
+      clientKeySource,
     });
     return reply({ error }, 400);
   };
@@ -64,6 +69,7 @@ export async function POST(req: NextRequest) {
       outcome: "rate_limited",
       status: 429,
       latencyMs: Date.now() - startedAt,
+      clientKeySource,
     });
     return NextResponse.json(
       { reply: RATE_LIMITED_REPLY },
@@ -111,6 +117,7 @@ export async function POST(req: NextRequest) {
       outcome: "misconfigured",
       status: 502,
       latencyMs: Date.now() - startedAt,
+      clientKeySource,
       promptVersion: SYSTEM_PROMPT_VERSION,
       messageChars: message.length,
       historyMessages: history.messages.length,
@@ -158,6 +165,7 @@ export async function POST(req: NextRequest) {
               outcome: stats.failed ? "upstream_error" : "ok",
               status: 200,
               latencyMs: Date.now() - startedAt,
+              clientKeySource,
               promptVersion: SYSTEM_PROMPT_VERSION,
               messageChars: message.length,
               historyMessages: history.messages.length,
@@ -193,6 +201,7 @@ export async function POST(req: NextRequest) {
       outcome: "ok",
       status: 200,
       latencyMs: Date.now() - startedAt,
+      clientKeySource,
       promptVersion: SYSTEM_PROMPT_VERSION,
       messageChars: message.length,
       historyMessages: history.messages.length,
@@ -207,6 +216,7 @@ export async function POST(req: NextRequest) {
       outcome: "upstream_error",
       status: 502,
       latencyMs: Date.now() - startedAt,
+      clientKeySource,
       promptVersion: SYSTEM_PROMPT_VERSION,
       messageChars: message.length,
       historyMessages: history.messages.length,

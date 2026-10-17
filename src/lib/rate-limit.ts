@@ -21,18 +21,43 @@ let lastSweep = 0;
  * that is `x-forwarded-for`, whose entries carry a port (`1.2.3.4:56789`),
  * so the port is stripped or every request would land in its own bucket.
  */
-export function clientKey(headers: Headers): string {
-  const forwarded = headers.get("x-forwarded-for") ?? headers.get("x-real-ip");
-  const first = forwarded?.split(",")[0]?.trim();
-  if (!first) return "unknown";
+/** Which header the key came from, or that neither was present. */
+export type ClientKeySource = "forwarded" | "real-ip" | "none";
 
-  const bracketed = first.match(/^\[(.+)\]:\d+$/); // [::1]:56789
+function normalise(address: string): string {
+  const bracketed = address.match(/^\[(.+)\]:\d+$/); // [::1]:56789
   if (bracketed) return bracketed[1];
 
-  const withPort = first.match(/^(\d+\.\d+\.\d+\.\d+):\d+$/); // 1.2.3.4:56789
+  const withPort = address.match(/^(\d+\.\d+\.\d+\.\d+):\d+$/); // 1.2.3.4:56789
   if (withPort) return withPort[1];
 
-  return first;
+  return address;
+}
+
+/**
+ * Identifies the caller, and reports where the identity came from.
+ *
+ * The source matters because of what happens without one: every anonymous
+ * request shares the single "unknown" bucket, so one heavy caller would
+ * exhaust the allowance for every visitor at once. Behind Azure the header is
+ * always set, so `source: "none"` means the deployment topology is wrong
+ * rather than that a visitor is unusual - and it is worth alerting on.
+ */
+export function identifyClient(headers: Headers): {
+  key: string;
+  source: ClientKeySource;
+} {
+  for (const header of ["x-forwarded-for", "x-real-ip"] as const) {
+    const first = headers.get(header)?.split(",")[0]?.trim();
+    if (first) {
+      return {
+        key: normalise(first),
+        source: header === "x-forwarded-for" ? "forwarded" : "real-ip",
+      };
+    }
+  }
+
+  return { key: "unknown", source: "none" };
 }
 
 function sweep(now: number) {

@@ -5,30 +5,73 @@ import {
   MAX_REQUESTS,
   __resetRateLimit,
   checkRateLimit,
-  clientKey,
+  identifyClient,
   rateLimitHeaders,
 } from "./rate-limit.ts";
 
 const headers = (value?: string) =>
   new Headers(value ? { "x-forwarded-for": value } : {});
 
-describe("clientKey", () => {
+describe("identifyClient", () => {
   // Azure includes a port in x-forwarded-for. Left on, every request lands in
   // its own bucket and the limit silently never fires.
   it("strips the port from an IPv4 address", () => {
-    assert.equal(clientKey(headers("1.2.3.4:56789")), "1.2.3.4");
+    assert.equal(identifyClient(headers("1.2.3.4:56789")).key, "1.2.3.4");
   });
 
   it("strips the port from a bracketed IPv6 address", () => {
-    assert.equal(clientKey(headers("[2001:db8::1]:4040")), "2001:db8::1");
+    assert.equal(
+      identifyClient(headers("[2001:db8::1]:4040")).key,
+      "2001:db8::1",
+    );
   });
 
   it("takes the client from a proxy chain", () => {
-    assert.equal(clientKey(headers("1.2.3.4:1, 5.6.7.8:2")), "1.2.3.4");
+    assert.equal(
+      identifyClient(headers("1.2.3.4:1, 5.6.7.8:2")).key,
+      "1.2.3.4",
+    );
   });
 
   it("falls back when the header is absent", () => {
-    assert.equal(clientKey(headers()), "unknown");
+    assert.equal(identifyClient(headers()).key, "unknown");
+  });
+
+  it("reports which header the identity came from", () => {
+    assert.equal(identifyClient(headers("1.2.3.4")).source, "forwarded");
+    assert.equal(
+      identifyClient(new Headers({ "x-real-ip": "1.2.3.4" })).source,
+      "real-ip",
+    );
+  });
+
+  // Without an identity every anonymous request shares one bucket, so one
+  // heavy caller exhausts the allowance for everybody. Behind Azure the header
+  // is always set, so "none" means the deployment topology is wrong.
+  it("reports source none when neither header is present", () => {
+    assert.equal(identifyClient(headers()).source, "none");
+  });
+
+  it("prefers x-forwarded-for when both are present", () => {
+    const both = new Headers({
+      "x-forwarded-for": "1.1.1.1",
+      "x-real-ip": "2.2.2.2",
+    });
+    assert.deepEqual(identifyClient(both), {
+      key: "1.1.1.1",
+      source: "forwarded",
+    });
+  });
+
+  it("ignores an empty header value and keeps looking", () => {
+    const blank = new Headers({
+      "x-forwarded-for": "",
+      "x-real-ip": "9.9.9.9",
+    });
+    assert.deepEqual(identifyClient(blank), {
+      key: "9.9.9.9",
+      source: "real-ip",
+    });
   });
 });
 

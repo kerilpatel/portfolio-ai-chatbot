@@ -24,6 +24,9 @@ export type RequestLog = {
   latencyMs: number;
   /** Which prompt revision produced this - see `SYSTEM_PROMPT_VERSION`. */
   promptVersion?: string;
+  /** Where the client identity came from. "none" means every anonymous
+   *  request is sharing one rate-limit bucket - alert on it. */
+  clientKeySource?: string;
   /** Length only - never the text itself. */
   messageChars?: number;
   historyMessages?: number;
