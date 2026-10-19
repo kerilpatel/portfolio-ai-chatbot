@@ -72,6 +72,12 @@ with a `Retry-After` header and a friendly `reply` in the normal response
 shape, so the UI can render it as a chat message rather than an error. The
 window is in-memory, so it resets on redeploy and is per-instance.
 
+The limiter keys on the `x-forwarded-for` entry the nearest trusted proxy
+added, counting in from the right, because the leftmost entry is only what the
+caller claimed. Set `TRUSTED_PROXY_HOPS` to the number of proxies in front of
+the service (default 1); setting it too high lets a caller spoof their
+identity and evade the limit.
+
 Every response carries `X-RateLimit-Limit`, `X-RateLimit-Remaining` and
 `X-RateLimit-Reset` (seconds), so the UI can warn before the wall instead of
 only reacting after it. All are listed in `Access-Control-Expose-Headers`,

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { beforeEach, describe, it } from "node:test";
+import { afterEach, beforeEach, describe, it } from "node:test";
 
 import {
   MAX_REQUESTS,
@@ -11,6 +11,12 @@ import {
 
 const headers = (value?: string) =>
   new Headers(value ? { "x-forwarded-for": value } : {});
+
+const savedHops = process.env.TRUSTED_PROXY_HOPS;
+afterEach(() => {
+  if (savedHops === undefined) delete process.env.TRUSTED_PROXY_HOPS;
+  else process.env.TRUSTED_PROXY_HOPS = savedHops;
+});
 
 describe("identifyClient", () => {
   // Azure includes a port in x-forwarded-for. Left on, every request lands in
@@ -26,10 +32,56 @@ describe("identifyClient", () => {
     );
   });
 
-  it("takes the client from a proxy chain", () => {
+  // The leftmost entry is whatever the caller claimed; the rightmost is what
+  // the proxy actually observed. Reading the left one let a caller send a new
+  // value per request and never exhaust an allowance.
+  it("takes the entry the trusted proxy appended, not the claimed one", () => {
     assert.equal(
       identifyClient(headers("1.2.3.4:1, 5.6.7.8:2")).key,
-      "1.2.3.4",
+      "5.6.7.8",
+    );
+  });
+
+  it("ignores a spoofed prefix however long", () => {
+    const spoofed = "9.9.9.9, 8.8.8.8, 7.7.7.7, 203.0.113.5";
+    assert.equal(identifyClient(headers(spoofed)).key, "203.0.113.5");
+  });
+
+  it("gives one caller the same key however they vary the prefix", () => {
+    const a = identifyClient(headers("1.1.1.1, 203.0.113.5")).key;
+    const b = identifyClient(headers("2.2.2.2, 203.0.113.5")).key;
+    assert.equal(a, b, "a rotating prefix must not create a fresh bucket");
+  });
+
+  it("honours TRUSTED_PROXY_HOPS for a second proxy layer", () => {
+    process.env.TRUSTED_PROXY_HOPS = "2";
+    // client -> FrontDoor -> AppService: the real client sits one further left.
+    assert.equal(
+      identifyClient(headers("spoofed, 203.0.113.5, 10.0.0.1")).key,
+      "203.0.113.5",
+    );
+  });
+
+  it("falls back to the leftmost when the chain is shorter than expected", () => {
+    process.env.TRUSTED_PROXY_HOPS = "5";
+    assert.equal(identifyClient(headers("203.0.113.5")).key, "203.0.113.5");
+  });
+
+  it("ignores a junk or zero hop setting", () => {
+    for (const bad of ["abc", "0", "-1", "1.5", ""]) {
+      process.env.TRUSTED_PROXY_HOPS = bad;
+      assert.equal(
+        identifyClient(headers("spoof, 203.0.113.5")).key,
+        "203.0.113.5",
+        `should default to 1 hop for ${JSON.stringify(bad)}`,
+      );
+    }
+  });
+
+  it("skips blank entries in the chain", () => {
+    assert.equal(
+      identifyClient(headers("spoof, , 203.0.113.5")).key,
+      "203.0.113.5",
     );
   });
 

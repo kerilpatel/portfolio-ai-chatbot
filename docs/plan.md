@@ -115,13 +115,12 @@ No npm package is published between them - the boundary is HTTP. A client wrappe
 - [ ] Decide whether to sample conversation content for online eval - the log
       is metadata-only today, and content sampling is a privacy tradeoff.
 - [ ] Move rate limiting to shared storage if this ever runs on >1 instance.
-- [ ] **Rate limiting is bypassable as written.** `identifyClient` keys on the
-      leftmost `x-forwarded-for` entry, which is whatever the caller claimed -
-      Azure appends the real IP rather than replacing the header. An abuser can
-      rotate that value per request and never hit the limit. The fix is to
-      count hops in from the right, trusting only the entries the platform
-      added, which needs the hosting choice below settled first since the hop
-      count differs between Static Web Apps, App Service and Functions.
+- [x] Rate limiting now keys on the entry a trusted proxy appended, counting
+      in from the right, so a caller cannot rotate a spoofed `x-forwarded-for`
+      prefix to get a fresh allowance.
+- [ ] Set `TRUSTED_PROXY_HOPS` to match the chosen hosting: 1 for App Service
+      or a Static Web App taking traffic directly, 2 behind Front Door. Too
+      high and a caller can spoof their identity again.
 - [ ] Set semantic cache similarity threshold and TTL policy.
 - [x] CI on every push/PR: lint, typecheck, test, build (no secrets needed).
 - [ ] Add the Promptfoo eval run to CI - needs Azure credentials as repo

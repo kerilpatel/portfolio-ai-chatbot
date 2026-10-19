@@ -35,6 +35,42 @@ function normalise(address: string): string {
 }
 
 /**
+ * How many proxies in front of this service are trusted to have appended to
+ * `x-forwarded-for`. One is right for App Service or a Static Web App taking
+ * traffic directly; put Front Door or another CDN in front and it becomes two.
+ */
+function trustedHops(): number {
+  const raw = Number(process.env.TRUSTED_PROXY_HOPS);
+  return Number.isInteger(raw) && raw > 0 ? raw : 1;
+}
+
+/**
+ * Picks the entry the nearest trusted proxy added, counting in from the right.
+ *
+ * `x-forwarded-for` grows left to right, and each proxy appends the address it
+ * received the connection from - it does not replace what was already there.
+ * So the leftmost entry is simply whatever the caller claimed, and reading it
+ * means a caller can send a different value on every request and never exhaust
+ * an allowance. The rightmost entries are the ones a proxy wrote, and are the
+ * only trustworthy ones.
+ *
+ * With one trusted hop, `client, REAL` yields REAL. If a caller prepends junk,
+ * `junk, spoof, REAL` still yields REAL.
+ */
+function trustedEntry(value: string): string | undefined {
+  const entries = value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  if (entries.length === 0) return undefined;
+
+  // Short of the expected hops means the header is not what we assumed, so
+  // fall back to the leftmost rather than reading past the start.
+  const index = Math.max(0, entries.length - trustedHops());
+  return entries[index];
+}
+
+/**
  * Identifies the caller, and reports where the identity came from.
  *
  * The source matters because of what happens without one: every anonymous
@@ -47,15 +83,16 @@ export function identifyClient(headers: Headers): {
   key: string;
   source: ClientKeySource;
 } {
-  for (const header of ["x-forwarded-for", "x-real-ip"] as const) {
-    const first = headers.get(header)?.split(",")[0]?.trim();
-    if (first) {
-      return {
-        key: normalise(first),
-        source: header === "x-forwarded-for" ? "forwarded" : "real-ip",
-      };
-    }
+  const forwarded = headers.get("x-forwarded-for");
+  if (forwarded) {
+    const entry = trustedEntry(forwarded);
+    if (entry) return { key: normalise(entry), source: "forwarded" };
   }
+
+  // x-real-ip is written by the proxy as a single value, so there is no chain
+  // to walk and nothing a caller can prepend.
+  const realIp = headers.get("x-real-ip")?.trim();
+  if (realIp) return { key: normalise(realIp), source: "real-ip" };
 
   return { key: "unknown", source: "none" };
 }
