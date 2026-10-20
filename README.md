@@ -64,8 +64,9 @@ so the client sends the conversation back each turn; only the last 6 messages
 (and 4000 characters) are forwarded, since every one is re-billed. Any other
 `role` is rejected with `400` - accepting `system` from the body would let a
 caller overwrite the guardrail prompt.
-Returns `400` on a missing/empty/over-long message, and `502` with a friendly
-`reply` if the upstream call fails. `OPTIONS /api/chat` handles the preflight.
+Returns `400` on a missing/empty/over-long message or a `history` of more than
+50 entries, `413` if the body exceeds 16KB, and `502` with a friendly `reply`
+if the upstream call fails. `OPTIONS /api/chat` handles the preflight.
 
 Rate limited to 20 requests per 15 minutes per IP. Over that it returns `429`
 with a `Retry-After` header and a friendly `reply` in the normal response

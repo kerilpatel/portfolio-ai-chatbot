@@ -102,6 +102,8 @@ No npm package is published between them - the boundary is HTTP. A client wrappe
 - [ ] Define the "About Me" structured summary format for always-in-context data.
 - [x] CORS allowlist + `OPTIONS` preflight on `/api/chat` (section 8).
 - [x] Per-visitor rate limiting, in-memory (section 5, layer 4).
+- [x] Request body and history-entry caps, so one request cannot make the
+      service parse megabytes before being told it was too large.
 - [x] Conversation history: client-supplied, capped at 6 messages / 4000 chars
       (section 7). Roles other than user/assistant are rejected.
 - [x] Add a test runner (`npm test`, Node built-in) covering `src/lib/`.

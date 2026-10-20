@@ -27,6 +27,18 @@ const RATE_LIMITED_REPLY =
 
 const MAX_MESSAGE_LENGTH = 1000;
 
+/**
+ * Ceiling on the request body, checked from Content-Length before anything is
+ * read. The message and history caps only apply after `req.json()` has already
+ * buffered and parsed the whole body, so without this a single request could
+ * make the service parse megabytes before being told it was too long. Rate
+ * limiting caps how many requests arrive, not how large they are.
+ *
+ * A full request - a 1000 character message plus six history messages - is
+ * around 5KB, so this leaves generous headroom.
+ */
+const MAX_BODY_BYTES = 16 * 1024;
+
 /** Preflight. Allow headers come from the allowlist, so a rejected origin
  *  still gets a 204 - just without permission to read the real response. */
 export async function OPTIONS(req: NextRequest) {
@@ -77,6 +89,20 @@ export async function POST(req: NextRequest) {
         status: 429,
         headers: { ...cors, "Retry-After": String(limit.retryAfterSeconds) },
       },
+    );
+  }
+
+  const declaredLength = Number(req.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_BODY_BYTES) {
+    logRequest(client, {
+      outcome: "bad_request",
+      status: 413,
+      latencyMs: Date.now() - startedAt,
+      clientKeySource,
+    });
+    return reply(
+      { error: `Request body must be at most ${MAX_BODY_BYTES} bytes` },
+      413,
     );
   }
 

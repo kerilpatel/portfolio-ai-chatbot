@@ -14,6 +14,15 @@
 export const MAX_HISTORY_MESSAGES = 6; // three exchanges
 export const MAX_HISTORY_CHARS = 4000;
 
+/**
+ * Hard cap on entries accepted before any are inspected. Only the last six
+ * survive trimming, so anything beyond this is work done on input that was
+ * always going to be discarded - and validating a million-entry array first
+ * would be unbounded effort. Generous enough that a real conversation sending
+ * its whole history back is never rejected.
+ */
+export const MAX_HISTORY_ENTRIES = 50;
+
 export type HistoryMessage = {
   role: "user" | "assistant";
   content: string;
@@ -58,6 +67,14 @@ export function parseHistory(raw: unknown): ParseResult {
 
   if (!Array.isArray(raw)) {
     return { ok: false, error: "`history` must be an array" };
+  }
+  // Checked before per-entry validation, so the cost of rejecting an oversized
+  // array does not scale with its length.
+  if (raw.length > MAX_HISTORY_ENTRIES) {
+    return {
+      ok: false,
+      error: `\`history\` must have at most ${MAX_HISTORY_ENTRIES} entries`,
+    };
   }
   if (!raw.every(isHistoryMessage)) {
     return {

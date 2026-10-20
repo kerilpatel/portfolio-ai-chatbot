@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { MAX_HISTORY_MESSAGES, parseHistory } from "./history.ts";
+import {
+  MAX_HISTORY_ENTRIES,
+  MAX_HISTORY_MESSAGES,
+  parseHistory,
+} from "./history.ts";
 
 const u = (content: string) => ({ role: "user" as const, content });
 const a = (content: string) => ({ role: "assistant" as const, content });
@@ -80,5 +84,36 @@ describe("parseHistory", () => {
     const result = parseHistory([u("x".repeat(99999))]);
     assert.ok(result.ok);
     assert.deepEqual(result.messages, []);
+  });
+});
+
+describe("parseHistory entry cap", () => {
+  it("accepts a conversation at the cap", () => {
+    const raw = Array.from({ length: MAX_HISTORY_ENTRIES }, (_, i) =>
+      i % 2 === 0 ? u(`u${i}`) : a(`a${i}`),
+    );
+    assert.equal(parseHistory(raw).ok, true);
+  });
+
+  it("rejects one entry past the cap", () => {
+    const raw = Array.from({ length: MAX_HISTORY_ENTRIES + 1 }, () => u("x"));
+    const result = parseHistory(raw);
+    assert.equal(result.ok, false);
+    assert.ok(!result.ok && /at most/.test(result.error));
+  });
+
+  // The length check must come first, or rejecting a huge array costs as much
+  // as validating it.
+  it("rejects an oversized array without inspecting every entry", () => {
+    let inspected = 0;
+    const raw = Array.from({ length: 100_000 }, () => ({
+      role: "user",
+      get content() {
+        inspected++;
+        return "x";
+      },
+    }));
+    assert.equal(parseHistory(raw).ok, false);
+    assert.equal(inspected, 0, "no entry should have been read");
   });
 });
