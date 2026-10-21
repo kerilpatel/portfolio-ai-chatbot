@@ -100,7 +100,9 @@ No npm package is published between them - the boundary is HTTP. A client wrappe
 - [ ] Add the factual rows to the golden dataset - blocked on real `about-me`
       content, since there is nothing yet to assert answers against.
 - [ ] Define the "About Me" structured summary format for always-in-context data.
-- [x] CORS allowlist + `OPTIONS` preflight on `/api/chat` (section 8).
+- [x] CORS allowlist + `OPTIONS` preflight on `/api/chat` (section 8), with
+      `application/json` required so the allowlist cannot be sidestepped by a
+      preflight-free content type.
 - [x] Per-visitor rate limiting, in-memory (section 5, layer 4).
 - [x] Request body and history-entry caps, so one request cannot make the
       service parse megabytes before being told it was too large.

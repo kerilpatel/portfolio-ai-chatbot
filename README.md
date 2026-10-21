@@ -65,8 +65,13 @@ so the client sends the conversation back each turn; only the last 6 messages
 `role` is rejected with `400` - accepting `system` from the body would let a
 caller overwrite the guardrail prompt.
 Returns `400` on a missing/empty/over-long message or a `history` of more than
-50 entries, `413` if the body exceeds 16KB, and `502` with a friendly `reply`
-if the upstream call fails. `OPTIONS /api/chat` handles the preflight.
+50 entries, `413` if the body exceeds 16KB, `415` unless the request is
+`application/json`, and `502` with a friendly `reply` if the upstream call
+fails.
+
+Insisting on `application/json` is what makes the origin allowlist protective:
+`text/plain` and the form content types are CORS-safelisted, so a cross-origin
+request using one is sent with no preflight and the allowlist is never asked. `OPTIONS /api/chat` handles the preflight.
 
 Rate limited to 20 requests per 15 minutes per IP. Over that it returns `429`
 with a `Retry-After` header and a friendly `reply` in the normal response

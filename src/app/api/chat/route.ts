@@ -39,6 +39,23 @@ const MAX_MESSAGE_LENGTH = 1000;
  */
 const MAX_BODY_BYTES = 16 * 1024;
 
+/**
+ * Requiring JSON is what makes the CORS allowlist actually protective.
+ *
+ * `text/plain`, `application/x-www-form-urlencoded` and `multipart/form-data`
+ * are CORS-safelisted, so a cross-origin request using one of them is sent
+ * without a preflight - the allowlist never gets asked. A plain-text body
+ * carrying JSON therefore reached the model from any origin at all. Insisting
+ * on `application/json` forces a preflight, which the allowlist then refuses.
+ *
+ * CORS only governs whether the caller may read the response; it never stopped
+ * the request arriving and costing tokens.
+ */
+function isJsonRequest(contentType: string | null): boolean {
+  // Tolerate parameters and casing: "application/json; charset=utf-8".
+  return contentType?.split(";")[0].trim().toLowerCase() === "application/json";
+}
+
 /** Preflight. Allow headers come from the allowlist, so a rejected origin
  *  still gets a 204 - just without permission to read the real response. */
 export async function OPTIONS(req: NextRequest) {
@@ -90,6 +107,16 @@ export async function POST(req: NextRequest) {
         headers: { ...cors, "Retry-After": String(limit.retryAfterSeconds) },
       },
     );
+  }
+
+  if (!isJsonRequest(req.headers.get("content-type"))) {
+    logRequest(client, {
+      outcome: "bad_request",
+      status: 415,
+      latencyMs: Date.now() - startedAt,
+      clientKeySource,
+    });
+    return reply({ error: "Content-Type must be application/json" }, 415);
   }
 
   const declaredLength = Number(req.headers.get("content-length"));
