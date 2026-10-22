@@ -17,6 +17,8 @@ export const metadata: Metadata = {
   title: "portfolio-ai-chatbot",
   description:
     "Backend service for the Ask Me Anything chatbot on my portfolio site.",
+  // The robots.txt allows this page to be fetched precisely so this is seen.
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

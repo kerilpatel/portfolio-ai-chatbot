@@ -9,6 +9,7 @@ See [docs/plan.md](docs/plan.md) for the full design.
 ## Structure
 
 - `src/app/page.tsx` — static page explaining the service; there is no UI here
+- `src/app/robots.ts` — keeps the service out of search results
 - `src/app/api/chat/route.ts` — chat endpoint (single-turn, no RAG yet)
 - `src/app/api/health/route.ts` — health probe for deployment
 - `src/lib/system-prompt.ts` — scoping + grounding guardrail prompt, plus its
