@@ -100,6 +100,12 @@ keeps the plain JSON response.
 uptimeSeconds }` for a deployment probe. `configured` is false when an Azure
 setting is absent, and `missing` names which — names only, never values.
 
+Every response carries `X-Content-Type-Options: nosniff`,
+`X-Frame-Options: DENY` and `Referrer-Policy: no-referrer`, set in
+`next.config.ts`. The cross-origin isolation headers are deliberately not set:
+this service exists to be called from another origin, and the allowlist below
+is where that decision belongs.
+
 CORS is an allowlist: set `ALLOWED_ORIGIN` to a comma-separated list of
 origins. A request from anywhere else is still served, but without the
 `Access-Control-Allow-Origin` header, so browsers block it. The header is
