@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
+    "prompt:size": "node scripts/prompt-size.mjs",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\" \"*.{js,cjs,json,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css,json}\" \"*.{js,cjs,json,md}\"",
     "test": "node --test \"src/**/*.test.ts\""

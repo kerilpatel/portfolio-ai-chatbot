@@ -44,6 +44,16 @@ CI on every push and PR to `main` and `develop`. None of them need secrets.
 
 Unit tests for `src/lib/` via the Node test runner - no extra dependencies.
 
+## Prompt size
+
+```bash
+npm run prompt:size
+```
+
+Azure prompt caching only applies to a prefix of at least 1024 tokens. Run
+this after editing the system prompt or `about-me.ts` to see whether the
+cacheable prefix is large enough yet.
+
 ## Evals
 
 ```bash

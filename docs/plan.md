@@ -41,6 +41,13 @@ No npm package is published between them - the boundary is HTTP. A client wrappe
   - High payoff for a personal portfolio since most visitors ask a small set of recurring questions.
 - **Prompt caching:**
   - Use Azure OpenAI prompt caching so the system prompt + "About Me" context block isn't re-billed on every call - only new user question tokens cost full price.
+  - **Not yet eligible.** Caching only applies to a prefix of at least 1024
+    tokens. The system prompt plus the placeholder "About Me" measures ~1400
+    characters, roughly 350-465 tokens, so caching cannot engage at all today
+    and `cachedTokens` in the request log stays empty - which reads as caching
+    being broken rather than never having applied. Real `about-me` content plus
+    retrieved context should clear the threshold. Check with
+    `npm run prompt:size`.
 - **Cost monitoring & budgets:**
   - Set up Azure OpenAI spend alerts to catch abuse (e.g., endpoint hammering) early.
 - **Graceful rate-limit UX (signature touch):**
@@ -130,7 +137,8 @@ No npm package is published between them - the boundary is HTTP. A client wrappe
 - [ ] Add the Promptfoo eval run to CI - needs Azure credentials as repo
       secrets and a filled-in golden dataset first.
 - [x] Write the system prompt (`src/lib/system-prompt.ts`) — scoping + grounding.
-- [ ] Replace the placeholder content in `src/lib/about-me.ts` with real details.
+- [ ] Replace the placeholder content in `src/lib/about-me.ts` with real
+      details. Also needed before prompt caching can engage - see section 4.
 - [ ] Set up Azure AI Content Safety on the Foundry deployment.
 - [ ] Set up cost/budget alerts in Azure.
 - [ ] Implement `src/lib/rag` and `src/lib/cache` (not yet created) against Azure AI Search.
