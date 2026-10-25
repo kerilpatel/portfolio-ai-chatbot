@@ -48,6 +48,11 @@ No npm package is published between them - the boundary is HTTP. A client wrappe
     being broken rather than never having applied. Real `about-me` content plus
     retrieved context should clear the threshold. Check with
     `npm run prompt:size`.
+  - Verified against Microsoft Learn: the 1024-token floor holds, and the
+    first 1024 tokens must also be identical between calls - so every prompt
+    or content edit makes the next call a miss. On GPT-5.6+ there are also
+    explicit cache breakpoints and cache _writes_ can be billed, which is
+    worth checking against whichever model is deployed.
 - **Cost monitoring & budgets:**
   - Set up Azure OpenAI spend alerts to catch abuse (e.g., endpoint hammering) early.
 - **Graceful rate-limit UX (signature touch):**

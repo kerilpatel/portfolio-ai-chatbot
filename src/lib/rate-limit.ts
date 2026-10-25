@@ -18,8 +18,13 @@ let lastSweep = 0;
 
 /**
  * `req.ip` was removed in Next 15 - the hosting provider supplies it. On Azure
- * that is `x-forwarded-for`, whose entries carry a port (`1.2.3.4:56789`),
- * so the port is stripped or every request would land in its own bucket.
+ * that is `x-forwarded-for`, whose entries *may* carry a port
+ * (`1.2.3.4:56789`). A port is documented for Application Gateway and is
+ * widely observed on App Service, though Microsoft does not document the
+ * format for App Service itself; Front Door appends a bare address. So the
+ * port is stripped when present and the address passed through when not -
+ * left on, each request would land in its own bucket and the limit would
+ * silently never fire.
  */
 /** Which header the key came from, or that neither was present. */
 export type ClientKeySource = "forwarded" | "real-ip" | "none";

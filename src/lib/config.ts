@@ -13,14 +13,17 @@ export const REQUIRED_VARS = [
 
 /**
  * The SDK defaults to a 10 minute timeout and retries timeouts twice, so an
- * unanswered request could hold a visitor for roughly half an hour. Azure App
- * Service would cut the connection at around 230s first, meaning the visitor
- * sees a platform error page rather than the contact-redirect reply - the
- * graceful fallback would be invisible exactly when it is needed.
+ * unanswered request could hold a visitor for roughly half an hour. App
+ * Service cuts the connection long before that - the documented figures are
+ * 230s on Windows and 240s on Linux, both from the load balancer's four
+ * minute idle timeout - so the visitor would see a platform error page rather
+ * than the contact-redirect reply, and the graceful fallback would be
+ * invisible exactly when it is needed.
  *
  * 30s is generous for a reply capped at 400 tokens, and one retry covers a
- * transient blip while keeping the worst case near 60s, well inside the
- * platform limit. Override per environment with AZURE_OPENAI_TIMEOUT_MS.
+ * transient blip while keeping the worst case near 60s - far inside the lower
+ * of the two figures, so the hosting choice cannot invalidate it. Override per
+ * environment with AZURE_OPENAI_TIMEOUT_MS.
  */
 const DEFAULT_TIMEOUT_MS = 30_000;
 export const MAX_RETRIES = 1;
