@@ -150,4 +150,19 @@ No npm package is published between them - the boundary is HTTP. A client wrappe
 - [x] Health endpoint (`GET /api/health`) for the deployment probe.
 - [x] Explicit upstream timeout + retry cap, so a hung Azure call cannot
       outlive the hosting platform's own request cutoff (section 7).
+- [ ] **Decide the API surface.** Microsoft now recommends the v1 API - the
+      `/openai/v1/` path with no dated `api-version`, called with the stock
+      `OpenAI()` client rather than `AzureOpenAI()`. `2024-10-21` still works
+      but is feature-frozen, and two things already built depend on leaving it:
+      streamed token totals (`stream_options`, now only sent when the version
+      declares it) and cached-token accounting (`prompt_tokens_details`),
+      neither of which exists in the `2024-10-21` schema.
+- [ ] **Match the token-limit parameter to the deployed model.** `max_tokens`
+      is deprecated and _rejected_ by every reasoning model - the o-series and
+      the GPT-5 reasoning family. But `max_completion_tokens` is not supported
+      on older models such as `gpt-4` turbo-2024-04-09, so there is no safe
+      blanket swap: the parameter has to match whatever is actually deployed.
+      The chat route currently sends `max_tokens`, which suits gpt-4o/4.1 and
+      will 400 on a reasoning deployment. The upstream error log names the
+      offending parameter if that happens.
 - [ ] Decide on final hosting choice for the proxy: Azure Static Web App vs. Azure App Service vs. Azure Functions.

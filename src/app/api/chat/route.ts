@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { AzureOpenAI } from "openai";
 
-import { MAX_RETRIES, azureConfig, timeoutMs } from "@/lib/config";
+import {
+  MAX_RETRIES,
+  azureConfig,
+  supportsStreamOptions,
+  timeoutMs,
+} from "@/lib/config";
 import { corsHeaders } from "@/lib/cors";
 import { parseHistory } from "@/lib/history";
 import { logRequest, upstreamFields } from "@/lib/observability";
@@ -201,8 +206,13 @@ export async function POST(req: NextRequest) {
       const upstream = await azure.chat.completions.create({
         ...request,
         stream: true,
-        // Without this the final chunk omits usage and token spend is unknown.
-        stream_options: { include_usage: true },
+        // Asks for usage totals in the final chunk. Only sent when the API
+        // version declares it - a GA version rejects the unknown argument
+        // outright, which would break streaming rather than just lose the
+        // token counts.
+        ...(supportsStreamOptions()
+          ? { stream_options: { include_usage: true } }
+          : {}),
       });
 
       const encoder = new TextEncoder();

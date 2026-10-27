@@ -5,6 +5,7 @@ import {
   MAX_RETRIES,
   azureConfig,
   missingConfig,
+  supportsStreamOptions,
   timeoutMs,
 } from "./config.ts";
 
@@ -74,5 +75,33 @@ describe("timeoutMs", () => {
   it("keeps the worst case under the platform limit", () => {
     delete process.env.AZURE_OPENAI_TIMEOUT_MS;
     assert.ok(timeoutMs() * (MAX_RETRIES + 1) < 230_000);
+  });
+});
+
+describe("supportsStreamOptions", () => {
+  // Dated GA versions do not declare stream_options, and Azure answers an
+  // unrecognised request argument with 400 - so sending it would break every
+  // streamed request rather than merely lose the token counts.
+  it("is false for the dated GA versions", () => {
+    for (const version of ["2024-10-21", "2024-06-01", "2023-05-15"]) {
+      process.env.AZURE_OPENAI_API_VERSION = version;
+      assert.equal(
+        supportsStreamOptions(),
+        false,
+        `expected false: ${version}`,
+      );
+    }
+  });
+
+  it("is true for the v1 API and preview versions", () => {
+    for (const version of ["v1", "preview", "2024-09-01-preview"]) {
+      process.env.AZURE_OPENAI_API_VERSION = version;
+      assert.equal(supportsStreamOptions(), true, `expected true: ${version}`);
+    }
+  });
+
+  it("is false when unset, the safer default", () => {
+    delete process.env.AZURE_OPENAI_API_VERSION;
+    assert.equal(supportsStreamOptions(), false);
   });
 });

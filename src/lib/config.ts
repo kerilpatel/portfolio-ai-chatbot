@@ -33,6 +33,25 @@ export function timeoutMs(): number {
   return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_TIMEOUT_MS;
 }
 
+/**
+ * Whether the configured API version accepts `stream_options`.
+ *
+ * It arrived on the preview track in 2024-09-01-preview and is part of the v1
+ * API, but the dated GA versions - 2024-10-21 included - do not declare it.
+ * Azure answers an unrecognised request argument with a 400, so sending it
+ * blindly risks failing every streamed request on a GA version. The streamed
+ * reply still works without it; only the token totals are missing, which is
+ * the lesser loss.
+ *
+ * Checked against the published 2024-10-21 OpenAPI spec: `stream_options` is
+ * not among the request properties, and `usage` carries no
+ * `prompt_tokens_details`, so cached-token accounting needs the v1 API too.
+ */
+export function supportsStreamOptions(): boolean {
+  const version = process.env.AZURE_OPENAI_API_VERSION ?? "";
+  return version === "v1" || version.includes("preview");
+}
+
 export type AzureConfig = {
   endpoint: string;
   apiKey: string;
