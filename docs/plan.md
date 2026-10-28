@@ -157,12 +157,11 @@ No npm package is published between them - the boundary is HTTP. A client wrappe
       streamed token totals (`stream_options`, now only sent when the version
       declares it) and cached-token accounting (`prompt_tokens_details`),
       neither of which exists in the `2024-10-21` schema.
-- [ ] **Match the token-limit parameter to the deployed model.** `max_tokens`
-      is deprecated and _rejected_ by every reasoning model - the o-series and
-      the GPT-5 reasoning family. But `max_completion_tokens` is not supported
-      on older models such as `gpt-4` turbo-2024-04-09, so there is no safe
-      blanket swap: the parameter has to match whatever is actually deployed.
-      The chat route currently sends `max_tokens`, which suits gpt-4o/4.1 and
-      will 400 on a reasoning deployment. The upstream error log names the
-      offending parameter if that happens.
+- [x] Generation parameters follow the deployed model via
+      `AZURE_OPENAI_REASONING_MODEL`. Reasoning models reject `max_tokens`
+      _and_ `temperature`; ordinary deployments need both, and older ones do
+      not accept `max_completion_tokens`. No single set satisfies both.
+- [ ] Set `AZURE_OPENAI_REASONING_MODEL` to match the chat deployment. The
+      default suits gpt-4o/4.1; left wrong, the first real call 400s and the
+      upstream error log names the offending parameter.
 - [ ] Decide on final hosting choice for the proxy: Azure Static Web App vs. Azure App Service vs. Azure Functions.
