@@ -52,6 +52,32 @@ export function supportsStreamOptions(): boolean {
   return version === "v1" || version.includes("preview");
 }
 
+/** Upper bound on a generated reply, whichever parameter name carries it. */
+export const MAX_REPLY_TOKENS = 400;
+
+/**
+ * Generation parameters that suit the deployed model.
+ *
+ * The reasoning models - the o-series and the GPT-5 reasoning family - reject
+ * `max_tokens` outright in favour of `max_completion_tokens`, and reject
+ * `temperature` along with the other sampling controls. Non-reasoning
+ * deployments are the mirror image: `max_tokens` is merely deprecated there,
+ * while `max_completion_tokens` is unsupported on older ones such as `gpt-4`
+ * turbo-2024-04-09. So there is no parameter set that satisfies both, and only
+ * whoever made the deployment knows which it is - hence the switch rather than
+ * a guess. Getting it wrong is a 400, and the upstream error log names the
+ * offending parameter.
+ */
+export function isReasoningModel(): boolean {
+  return (process.env.AZURE_OPENAI_REASONING_MODEL ?? "").trim() === "true";
+}
+
+export function generationParams(): Record<string, number> {
+  return isReasoningModel()
+    ? { max_completion_tokens: MAX_REPLY_TOKENS }
+    : { max_tokens: MAX_REPLY_TOKENS, temperature: 0.3 };
+}
+
 export type AzureConfig = {
   endpoint: string;
   apiKey: string;

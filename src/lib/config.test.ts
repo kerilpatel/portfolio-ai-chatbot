@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 
 import {
+  MAX_REPLY_TOKENS,
   MAX_RETRIES,
   azureConfig,
+  generationParams,
   missingConfig,
   supportsStreamOptions,
   timeoutMs,
@@ -15,6 +17,7 @@ const KEYS = [
   "AZURE_OPENAI_DEPLOYMENT",
   "AZURE_OPENAI_API_VERSION",
   "AZURE_OPENAI_TIMEOUT_MS",
+  "AZURE_OPENAI_REASONING_MODEL",
 ];
 const saved = Object.fromEntries(KEYS.map((k) => [k, process.env[k]]));
 
@@ -103,5 +106,35 @@ describe("supportsStreamOptions", () => {
   it("is false when unset, the safer default", () => {
     delete process.env.AZURE_OPENAI_API_VERSION;
     assert.equal(supportsStreamOptions(), false);
+  });
+});
+
+describe("generationParams", () => {
+  it("sends max_tokens and temperature for an ordinary deployment", () => {
+    delete process.env.AZURE_OPENAI_REASONING_MODEL;
+    const params = generationParams();
+    assert.equal(params.max_tokens, MAX_REPLY_TOKENS);
+    assert.equal(params.temperature, 0.3);
+    assert.ok(!("max_completion_tokens" in params));
+  });
+
+  // Reasoning models reject max_tokens AND temperature, so switching only the
+  // token parameter would just move the 400 to the next one.
+  it("drops temperature and renames the token cap for a reasoning model", () => {
+    process.env.AZURE_OPENAI_REASONING_MODEL = "true";
+    const params = generationParams();
+    assert.equal(params.max_completion_tokens, MAX_REPLY_TOKENS);
+    assert.ok(!("max_tokens" in params), "max_tokens is rejected");
+    assert.ok(!("temperature" in params), "temperature is rejected");
+  });
+
+  it("treats anything other than true as an ordinary deployment", () => {
+    for (const value of ["false", "1", "yes", "", "TRUE"]) {
+      process.env.AZURE_OPENAI_REASONING_MODEL = value;
+      assert.ok(
+        "max_tokens" in generationParams(),
+        `should not opt in for ${JSON.stringify(value)}`,
+      );
+    }
   });
 });

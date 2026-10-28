@@ -5,6 +5,7 @@ import { AzureOpenAI } from "openai";
 import {
   MAX_RETRIES,
   azureConfig,
+  generationParams,
   supportsStreamOptions,
   timeoutMs,
 } from "@/lib/config";
@@ -197,8 +198,7 @@ export async function POST(req: NextRequest) {
         ...history.messages,
         { role: "user" as const, content: message },
       ],
-      temperature: 0.3,
-      max_tokens: 400,
+      ...generationParams(),
     };
 
     if (wantsStream === true) {
