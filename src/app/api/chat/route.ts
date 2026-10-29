@@ -171,7 +171,11 @@ export async function POST(req: NextRequest) {
   // one needs a redeploy, the other a retry.
   const azureEnv = azureConfig();
   if (!azureEnv.ok) {
-    console.error("[api/chat] missing config:", azureEnv.missing.join(", "));
+    console.error(
+      "[api/chat] unusable config -",
+      `missing: [${azureEnv.missing.join(", ")}]`,
+      `invalid: [${azureEnv.invalid.join(", ")}]`,
+    );
     logRequest(client, {
       outcome: "misconfigured",
       status: 502,

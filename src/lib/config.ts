@@ -91,14 +91,53 @@ export function missingConfig(): string[] {
 }
 
 /**
+ * Names of settings that are present but unusable.
+ *
+ * A present-but-wrong value is worse than an absent one: the absent case was
+ * already reported, while a malformed endpoint sailed through as `configured`
+ * and then failed deep in the SDK as `TypeError: Invalid URL`. That surfaced
+ * as an upstream error with no status or code to extract, so the logs blamed
+ * Azure for what was a local typo, and the health probe said everything was
+ * fine.
+ */
+export function invalidConfig(): string[] {
+  const invalid: string[] = [];
+  const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
+
+  if (endpoint) {
+    let url: URL | undefined;
+    try {
+      url = new URL(endpoint);
+    } catch {
+      // Most often the scheme is missing: `my-resource.openai.azure.com`.
+      invalid.push("AZURE_OPENAI_ENDPOINT");
+    }
+
+    if (url && url.protocol !== "https:" && url.protocol !== "http:") {
+      invalid.push("AZURE_OPENAI_ENDPOINT");
+    } else if (url && url.pathname.includes("/openai")) {
+      // The SDK appends the /openai/... path itself, so including it here
+      // yields a doubled path and a 404 that looks like a missing deployment.
+      invalid.push("AZURE_OPENAI_ENDPOINT");
+    }
+  }
+
+  return invalid;
+}
+
+/**
  * Returns the config, or the names of what is absent. Deliberately not a
  * throw: a missing setting is a broken deploy, not an upstream failure, and
  * the caller needs to tell those apart when it logs.
  */
 export function azureConfig():
-  { ok: true; config: AzureConfig } | { ok: false; missing: string[] } {
+  | { ok: true; config: AzureConfig }
+  | { ok: false; missing: string[]; invalid: string[] } {
   const missing = missingConfig();
-  if (missing.length > 0) return { ok: false, missing };
+  const invalid = invalidConfig();
+  if (missing.length > 0 || invalid.length > 0) {
+    return { ok: false, missing, invalid };
+  }
 
   return {
     ok: true,

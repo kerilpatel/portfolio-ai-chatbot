@@ -111,8 +111,10 @@ the `200` is already sent, a failure partway through arrives in-band as a
 keeps the plain JSON response.
 
 `GET /api/health` returns `{ status, promptVersion, configured, missing,
-uptimeSeconds }` for a deployment probe. `configured` is false when an Azure
-setting is absent, and `missing` names which — names only, never values.
+invalid, uptimeSeconds }` for a deployment probe. `configured` is false when an
+Azure setting is absent or unusable: `missing` names the absent ones and
+`invalid` the malformed ones, such as an endpoint that is not a valid URL.
+Names only, never values.
 
 Every response carries `X-Content-Type-Options: nosniff`,
 `X-Frame-Options: DENY` and `Referrer-Policy: no-referrer`, set in

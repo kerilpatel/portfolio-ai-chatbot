@@ -6,6 +6,7 @@ import {
   MAX_RETRIES,
   azureConfig,
   generationParams,
+  invalidConfig,
   missingConfig,
   supportsStreamOptions,
   timeoutMs,
@@ -29,7 +30,9 @@ afterEach(() => {
 });
 
 function setAll() {
-  for (const key of KEYS.slice(0, 4)) process.env[key] = "value";
+  // The endpoint is URL-validated, so it needs a realistic value.
+  process.env.AZURE_OPENAI_ENDPOINT = "https://example.openai.azure.com";
+  for (const key of KEYS.slice(1, 4)) process.env[key] = "value";
 }
 
 describe("azureConfig", () => {
@@ -136,5 +139,51 @@ describe("generationParams", () => {
         `should not opt in for ${JSON.stringify(value)}`,
       );
     }
+  });
+});
+
+describe("invalidConfig", () => {
+  it("accepts a well-formed endpoint", () => {
+    setAll();
+    assert.deepEqual(invalidConfig(), []);
+  });
+
+  // The usual slip: pasting the host without a scheme. This used to pass
+  // validation and then fail inside the SDK as "TypeError: Invalid URL",
+  // logged as an upstream error with no status or code to extract.
+  it("rejects an endpoint with no scheme", () => {
+    setAll();
+    process.env.AZURE_OPENAI_ENDPOINT = "example.openai.azure.com";
+    assert.deepEqual(invalidConfig(), ["AZURE_OPENAI_ENDPOINT"]);
+  });
+
+  // The SDK appends /openai/... itself, so including it doubles the path and
+  // the 404 looks like a missing deployment.
+  it("rejects an endpoint that already carries the openai path", () => {
+    setAll();
+    process.env.AZURE_OPENAI_ENDPOINT =
+      "https://example.openai.azure.com/openai/deployments/gpt-4o";
+    assert.deepEqual(invalidConfig(), ["AZURE_OPENAI_ENDPOINT"]);
+  });
+
+  it("rejects a non-http scheme", () => {
+    setAll();
+    process.env.AZURE_OPENAI_ENDPOINT = "ftp://example.openai.azure.com";
+    assert.deepEqual(invalidConfig(), ["AZURE_OPENAI_ENDPOINT"]);
+  });
+
+  it("says nothing about an endpoint that is merely absent", () => {
+    setAll();
+    delete process.env.AZURE_OPENAI_ENDPOINT;
+    assert.deepEqual(invalidConfig(), [], "absent is missingConfig's business");
+  });
+
+  it("makes azureConfig refuse a malformed endpoint", () => {
+    setAll();
+    process.env.AZURE_OPENAI_ENDPOINT = "example.openai.azure.com";
+    const result = azureConfig();
+    assert.equal(result.ok, false);
+    assert.ok(!result.ok && result.invalid.includes("AZURE_OPENAI_ENDPOINT"));
+    assert.ok(!result.ok && result.missing.length === 0, "it is present");
   });
 });

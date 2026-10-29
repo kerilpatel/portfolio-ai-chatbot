@@ -19,16 +19,24 @@ afterEach(() => {
   }
 });
 
+/** A valid endpoint matters: it is URL-validated, so a placeholder fails. */
+function setAll() {
+  process.env.AZURE_OPENAI_ENDPOINT = "https://example.openai.azure.com";
+  process.env.AZURE_OPENAI_API_KEY = "set";
+  process.env.AZURE_OPENAI_DEPLOYMENT = "set";
+  process.env.AZURE_OPENAI_API_VERSION = "set";
+}
+
 describe("health", () => {
   it("reports configured once every setting is present", () => {
-    for (const key of REQUIRED) process.env[key] = "set";
+    setAll();
     const result = health(12.7);
     assert.equal(result.configured, true);
     assert.deepEqual(result.missing, []);
   });
 
   it("names the missing settings without reporting configured", () => {
-    for (const key of REQUIRED) process.env[key] = "set";
+    setAll();
     delete process.env.AZURE_OPENAI_API_KEY;
     const result = health(0);
     assert.equal(result.configured, false);
@@ -37,7 +45,8 @@ describe("health", () => {
 
   // The endpoint is public, so it must never echo a credential.
   it("never includes a setting's value", () => {
-    for (const key of REQUIRED) process.env[key] = "super-secret-value";
+    setAll();
+    process.env.AZURE_OPENAI_API_KEY = "super-secret-value";
     const serialised = JSON.stringify(health(1));
     assert.ok(!serialised.includes("super-secret-value"));
   });
