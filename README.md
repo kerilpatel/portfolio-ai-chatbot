@@ -65,10 +65,11 @@ npm run dev                                   # the suite calls the live endpoin
 npx promptfoo eval -c eval/promptfooconfig.yaml
 ```
 
-The dataset is grouped by `category`: `off_topic`, `injection`, `unknown` and
-`identity` rows test guardrail behaviour and need no personal content, while
-`factual` rows depend on `src/lib/about-me.ts` being filled in. Running the
-suite needs Azure credentials, since it exercises the real endpoint.
+49 rows grouped by `category`. `factual` (29) checks answers against the
+content in `src/lib/about-me.ts`; `unknown` (7) checks the bot admits what it
+does not know; `injection` (6), `off_topic` (5) and `identity` (2) check
+guardrail behaviour. Running the suite needs Azure credentials, since it
+exercises the real endpoint.
 
 ## API
 
