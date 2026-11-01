@@ -31,3 +31,8 @@ jobs:
       # No secrets needed: the Azure client is constructed per request, so a
       # build never touches the credentials.
       - run: npm run build
+
+      # Boots the app and asserts every documented status code. Needs no
+      # credentials - the upstream call is expected to fail, and what this
+      # covers is every guard in front of it.
+      - run: npm run smoke

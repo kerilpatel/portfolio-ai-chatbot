@@ -110,7 +110,9 @@ No npm package is published between them - the boundary is HTTP. A client wrappe
 - [x] Golden dataset complete at 49 rows: 29 factual, 7 unknown-fact, 6
       injection, 5 off-topic, 2 identity. Every factual rubric asserts against
       a fact that is actually in `about-me.ts`, checked mechanically.
-- [ ] Define the "About Me" structured summary format for always-in-context data.
+- [x] "About Me" format defined and populated in `src/lib/about-me.ts`:
+      identity, summary, experience, skills, projects, education,
+      certifications, contact.
 - [x] CORS allowlist + `OPTIONS` preflight on `/api/chat` (section 8), with
       `application/json` required so the allowlist cannot be sidestepped by a
       preflight-free content type.
@@ -137,12 +139,15 @@ No npm package is published between them - the boundary is HTTP. A client wrappe
       or a Static Web App taking traffic directly, 2 behind Front Door. Too
       high and a caller can spoof their identity again.
 - [ ] Set semantic cache similarity threshold and TTL policy.
-- [x] CI on every push/PR: lint, typecheck, test, build (no secrets needed).
+- [x] CI on every push/PR: lint, typecheck, test, build, smoke (no secrets
+      needed). The smoke script boots the app and asserts every documented
+      status code, replacing a month of running those checks by hand.
 - [ ] Add the Promptfoo eval run to CI - needs Azure credentials as repo
       secrets and a filled-in golden dataset first.
 - [x] Write the system prompt (`src/lib/system-prompt.ts`) — scoping + grounding.
-- [ ] Replace the placeholder content in `src/lib/about-me.ts` with real
-      details. Also needed before prompt caching can engage - see section 4.
+- [x] Real `about-me` content, taken from the portfolio site's own source so
+      the two cannot drift. Moved the cacheable prefix from ~350-465 tokens to
+      ~1002-1335, which is borderline against the 1024 floor.
 - [ ] Set up Azure AI Content Safety on the Foundry deployment.
 - [ ] Set up cost/budget alerts in Azure.
 - [ ] Implement `src/lib/rag` and `src/lib/cache` (not yet created) against Azure AI Search.

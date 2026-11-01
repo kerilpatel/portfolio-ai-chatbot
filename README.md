@@ -44,6 +44,14 @@ CI on every push and PR to `main` and `develop`. None of them need secrets.
 
 Unit tests for `src/lib/` via the Node test runner - no extra dependencies.
 
+```bash
+npm run smoke
+```
+
+Boots the app and asserts every status code the API section documents. Needs
+no credentials: the upstream call is expected to fail, and what it covers is
+every guard in front of it. Runs in CI.
+
 Set `AZURE_OPENAI_REASONING_MODEL=true` if the chat deployment is a reasoning
 model (o-series, GPT-5 reasoning family). Those reject `max_tokens` and
 `temperature`; everything else requires them.

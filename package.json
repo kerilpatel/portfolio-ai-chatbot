@@ -12,7 +12,8 @@
     "prompt:size": "node scripts/prompt-size.mjs",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\" \"*.{js,cjs,json,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css,json}\" \"*.{js,cjs,json,md}\"",
-    "test": "node --test \"src/**/*.test.ts\""
+    "test": "node --test \"src/**/*.test.ts\"",
+    "smoke": "bash scripts/smoke.sh"
   },
   "dependencies": {
     "next": "16.3.4",
