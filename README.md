@@ -17,6 +17,7 @@ See [docs/plan.md](docs/plan.md) for the full design.
 - `src/lib/cors.ts` — origin allowlist
 - `src/lib/rate-limit.ts` — per-IP sliding window
 - `src/lib/history.ts` — conversation history validation + trimming
+- `src/lib/rag/` — retrievable corpus and chunking (embedding not wired yet)
 - `src/lib/observability.ts` — one structured log line per request
 - `src/lib/stream.ts` — SSE framing for streamed replies
 - `src/lib/about-me.ts` — always-in-context summary (placeholder content)

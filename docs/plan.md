@@ -150,7 +150,14 @@ No npm package is published between them - the boundary is HTTP. A client wrappe
       ~1002-1335, which is borderline against the 1024 floor.
 - [ ] Set up Azure AI Content Safety on the Foundry deployment.
 - [ ] Set up cost/budget alerts in Azure.
-- [ ] Implement `src/lib/rag` and `src/lib/cache` (not yet created) against Azure AI Search.
+- [x] RAG corpus (`src/lib/rag/corpus.ts`) and chunking (`chunk.ts`). The
+      corpus is the longer material that does not belong in every prompt -
+      references, award detail, per-skill notes, education detail - taken from
+      the portfolio site's own content. 10 documents, 17 chunks.
+- [ ] Embed the chunks and retrieve against Azure AI Search. Needs the search
+      resource and an embedding deployment; the chunking ahead of it is done
+      and tested.
+- [ ] Implement `src/lib/cache` (semantic cache) - needs embeddings too.
 - [x] Health endpoint (`GET /api/health`) for the deployment probe, reporting
       absent settings and present-but-malformed ones separately.
 - [x] Explicit upstream timeout + retry cap, so a hung Azure call cannot
