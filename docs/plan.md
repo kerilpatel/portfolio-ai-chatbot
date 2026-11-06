@@ -4,7 +4,7 @@
 
 A generative AI-powered chat widget embedded in the personal portfolio site (Next.js). It appears as a bottom-right popup on page load and invites visitors to ask anything about the owner's experience, skills, and past work. Beyond being a useful feature, this project doubles as a **portfolio piece in itself** - showcasing skills in RAG, LLM evaluation, guardrails, and production-grade AI system design.
 
-- **Site stack:** React (Vite), consuming this repo's widget as an npm package
+- **Site stack:** React (Vite), calling this service's HTTP endpoint (see section 2 - no npm package is published between them)
 - **Hosting:** Azure (site + proxy)
 - **LLM provider:** Azure AI Foundry / Azure OpenAI
 - **Eval platform:** Promptfoo (recently acquired by OpenAI)
@@ -62,7 +62,7 @@ No npm package is published between them - the boundary is HTTP. A client wrappe
 
 ---
 
-## 5. Guardrails (3 Layers)
+## 5. Guardrails (4 Layers)
 
 1. **System prompt scoping:** Strictly boxes the assistant into the owner's professional identity; explicitly instructed to decline/redirect off-topic or inappropriate requests.
 2. **Azure AI Content Safety:** Attach directly to the Foundry deployment to catch harmful/abusive input before it reaches the model.
