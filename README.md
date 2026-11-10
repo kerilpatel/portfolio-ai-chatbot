@@ -40,8 +40,14 @@ Open [http://localhost:3000](http://localhost:3000).
 npm test
 ```
 
-`npm run lint`, `npm run typecheck`, `npm test` and `npm run build` all run in
-CI on every push and PR to `main` and `develop`. None of them need secrets.
+`npm run lint`, `npm run typecheck`, `npm test`, `npm run build` and
+`npm run smoke` all run in CI on every push and PR to `main` and `develop`,
+plus weekly on a schedule. None of them need secrets.
+
+CI also audits dependencies. The build fails on a high or critical advisory in
+anything that ships (`npm audit --omit=dev --audit-level=high`); dev-tooling
+advisories are reported without blocking, since a denial of service in the
+linter'''s glob parser is not worth a red build.
 
 Unit tests for `src/lib/` via the Node test runner - no extra dependencies.
 

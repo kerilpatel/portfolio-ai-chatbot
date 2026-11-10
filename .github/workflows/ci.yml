@@ -5,6 +5,11 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
+  # Advisories appear without anyone touching the code. The Next.js critical
+  # that shipped here for weeks was found by chance, not by a check.
+  schedule:
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
 
 jobs:
   verify:
@@ -21,6 +26,18 @@ jobs:
           cache: npm
 
       - run: npm ci
+
+      # Fails the build only for what actually ships. Dev-tooling advisories
+      # are reported in the next step without blocking: a DoS in the lint
+      # toolchain's glob parser is not worth a red build, while the same
+      # severity in a runtime dependency is.
+      - name: Audit shipping dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+      # Informational, so dev-dependency advisories stay visible rather than
+      # silently accumulating behind the gate above.
+      - name: Audit all dependencies (advisory only)
+        run: npm audit || true
 
       - run: npm run lint
 
