@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { AzureOpenAI } from "openai";
 
+import { readBoundedText } from "@/lib/body";
 import {
   MAX_RETRIES,
   azureConfig,
@@ -125,8 +126,26 @@ export async function POST(req: NextRequest) {
     return reply({ error: "Content-Type must be application/json" }, 415);
   }
 
+  // Cheap early reject when the client declares an oversized body. Not the
+  // enforcement - a chunked request sends no Content-Length at all.
   const declaredLength = Number(req.headers.get("content-length"));
   if (Number.isFinite(declaredLength) && declaredLength > MAX_BODY_BYTES) {
+    logRequest(client, {
+      outcome: "bad_request",
+      status: 413,
+      latencyMs: Date.now() - startedAt,
+      clientKeySource,
+    });
+    return reply(
+      { error: `Request body must be at most ${MAX_BODY_BYTES} bytes` },
+      413,
+    );
+  }
+
+  // The real ceiling, applied while reading rather than from a header the
+  // client controls and may omit.
+  const body = await readBoundedText(req.body, MAX_BODY_BYTES);
+  if (!body.ok) {
     logRequest(client, {
       outcome: "bad_request",
       status: 413,
@@ -143,7 +162,11 @@ export async function POST(req: NextRequest) {
   let rawHistory: unknown;
   let wantsStream: unknown;
   try {
-    ({ message, history: rawHistory, stream: wantsStream } = await req.json());
+    ({
+      message,
+      history: rawHistory,
+      stream: wantsStream,
+    } = JSON.parse(body.text));
   } catch {
     return bad("Invalid JSON body");
   }

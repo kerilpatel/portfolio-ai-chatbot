@@ -96,7 +96,8 @@ so the client sends the conversation back each turn; only the last 6 messages
 `role` is rejected with `400` - accepting `system` from the body would let a
 caller overwrite the guardrail prompt.
 Returns `400` on a missing/empty/over-long message or a `history` of more than
-50 entries, `413` if the body exceeds 16KB, `415` unless the request is
+50 entries, `413` if the body exceeds 16KB (enforced while reading, not from
+`Content-Length`, which a chunked request omits), `415` unless the request is
 `application/json`, and `502` with a friendly `reply` if the upstream call
 fails.
 

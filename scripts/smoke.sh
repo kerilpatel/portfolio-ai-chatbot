@@ -109,6 +109,11 @@ check "charset parameter accepted"  502 "$(status POST /api/chat -H 'Content-Typ
 echo
 echo "request validation"
 check "oversized body refused"      413 "$(post_file big-body.json)"
+# Content-Length is client-controlled and absent on a chunked transfer, which
+# bypassed the cap entirely until the body was read with its own budget.
+check "oversized chunked body refused" 413 "$(status POST /api/chat \
+  -H 'Content-Type: application/json' -H 'Transfer-Encoding: chunked' \
+  --data-binary "@${FIXTURES}/big-body.json")"
 check "malformed json refused"      400 "$(post_json 'not json')"
 check "missing message refused"     400 "$(post_json '{}')"
 check "blank message refused"       400 "$(post_json '{"message":"   "}')"
