@@ -13,9 +13,12 @@ const headers = (value?: string) =>
   new Headers(value ? { "x-forwarded-for": value } : {});
 
 const savedHops = process.env.TRUSTED_PROXY_HOPS;
+const savedRealIp = process.env.TRUST_X_REAL_IP;
 afterEach(() => {
   if (savedHops === undefined) delete process.env.TRUSTED_PROXY_HOPS;
   else process.env.TRUSTED_PROXY_HOPS = savedHops;
+  if (savedRealIp === undefined) delete process.env.TRUST_X_REAL_IP;
+  else process.env.TRUST_X_REAL_IP = savedRealIp;
 });
 
 describe("identifyClient", () => {
@@ -91,10 +94,55 @@ describe("identifyClient", () => {
 
   it("reports which header the identity came from", () => {
     assert.equal(identifyClient(headers("1.2.3.4")).source, "forwarded");
+    process.env.TRUST_X_REAL_IP = "true";
     assert.equal(
       identifyClient(new Headers({ "x-real-ip": "1.2.3.4" })).source,
       "real-ip",
     );
+  });
+
+  // A caller can send x-real-ip themselves. With x-forwarded-for absent that
+  // value became the key verbatim, so rotating it bought a fresh allowance
+  // each request - the same bypass as keying on the leftmost x-forwarded-for
+  // entry. Azure sets x-forwarded-for, not x-real-ip, so here the header is
+  // only attack surface unless a deployment opts in.
+  it("ignores x-real-ip unless explicitly trusted", () => {
+    delete process.env.TRUST_X_REAL_IP;
+    for (const value of ["1.1.1.1", "2.2.2.2", "3.3.3.3"]) {
+      assert.deepEqual(
+        identifyClient(new Headers({ "x-real-ip": value })),
+        { key: "unknown", source: "none" },
+        `a rotating x-real-ip must not create a bucket: ${value}`,
+      );
+    }
+  });
+
+  it("honours x-real-ip once trusted", () => {
+    process.env.TRUST_X_REAL_IP = "true";
+    assert.deepEqual(identifyClient(new Headers({ "x-real-ip": "9.9.9.9" })), {
+      key: "9.9.9.9",
+      source: "real-ip",
+    });
+  });
+
+  it("prefers x-forwarded-for even when x-real-ip is trusted", () => {
+    process.env.TRUST_X_REAL_IP = "true";
+    const both = new Headers({
+      "x-forwarded-for": "203.0.113.5",
+      "x-real-ip": "1.1.1.1",
+    });
+    assert.equal(identifyClient(both).key, "203.0.113.5");
+  });
+
+  it("treats anything other than true as not trusted", () => {
+    for (const value of ["false", "1", "yes", "TRUE", ""]) {
+      process.env.TRUST_X_REAL_IP = value;
+      assert.equal(
+        identifyClient(new Headers({ "x-real-ip": "1.1.1.1" })).source,
+        "none",
+        `should not opt in for ${JSON.stringify(value)}`,
+      );
+    }
   });
 
   // Without an identity every anonymous request shares one bucket, so one
@@ -116,6 +164,7 @@ describe("identifyClient", () => {
   });
 
   it("ignores an empty header value and keeps looking", () => {
+    process.env.TRUST_X_REAL_IP = "true";
     const blank = new Headers({
       "x-forwarded-for": "",
       "x-real-ip": "9.9.9.9",

@@ -114,7 +114,9 @@ The limiter keys on the `x-forwarded-for` entry the nearest trusted proxy
 added, counting in from the right, because the leftmost entry is only what the
 caller claimed. Set `TRUSTED_PROXY_HOPS` to the number of proxies in front of
 the service (default 1); setting it too high lets a caller spoof their
-identity and evade the limit.
+identity and evade the limit. `X-Real-IP` is ignored unless
+`TRUST_X_REAL_IP=true`, since Azure does not set it and a caller can supply
+their own.
 
 Every response carries `X-RateLimit-Limit`, `X-RateLimit-Remaining` and
 `X-RateLimit-Reset` (seconds), so the UI can warn before the wall instead of

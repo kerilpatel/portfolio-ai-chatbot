@@ -44,6 +44,10 @@ function normalise(address: string): string {
  * `x-forwarded-for`. One is right for App Service or a Static Web App taking
  * traffic directly; put Front Door or another CDN in front and it becomes two.
  */
+function trustsRealIp(): boolean {
+  return (process.env.TRUST_X_REAL_IP ?? "").trim() === "true";
+}
+
 function trustedHops(): number {
   const raw = Number(process.env.TRUSTED_PROXY_HOPS);
   return Number.isInteger(raw) && raw > 0 ? raw : 1;
@@ -94,10 +98,21 @@ export function identifyClient(headers: Headers): {
     if (entry) return { key: normalise(entry), source: "forwarded" };
   }
 
-  // x-real-ip is written by the proxy as a single value, so there is no chain
-  // to walk and nothing a caller can prepend.
-  const realIp = headers.get("x-real-ip")?.trim();
-  if (realIp) return { key: normalise(realIp), source: "real-ip" };
+  // x-real-ip is only trusted when a deployment is explicitly configured to.
+  //
+  // It has no chain to walk, so nothing can be prepended to it - but a caller
+  // can simply send the whole header, and when x-forwarded-for is absent that
+  // value became the bucket key verbatim. Rotating it bought a fresh
+  // allowance per request: the same bypass that keying on the leftmost
+  // x-forwarded-for entry allowed.
+  //
+  // Azure sets x-forwarded-for, not x-real-ip, so here the header is pure
+  // attack surface and is ignored by default. nginx does set it
+  // (proxy_set_header X-Real-IP), hence the opt-in rather than deletion.
+  if (trustsRealIp()) {
+    const realIp = headers.get("x-real-ip")?.trim();
+    if (realIp) return { key: normalise(realIp), source: "real-ip" };
+  }
 
   return { key: "unknown", source: "none" };
 }
