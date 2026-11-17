@@ -131,6 +131,12 @@ No npm package is published between them - the boundary is HTTP. A client wrappe
       (section 7). Derived, not hand-maintained, so it can't go stale.
 - [x] Streaming responses, opt-in via `stream: true` (section 7). Framing is
       unit-tested; the live Azure stream still needs credentials to confirm.
+- [ ] Cover the streaming paths in the smoke suite. The framing in
+      `stream.ts` is unit-tested, but the route's own stream handling - the
+      `ok` and `client_closed` endings - is only ever verified by hand against
+      a local stub, because the smoke suite runs with no credentials and so
+      never opens a stream. Covering it means the suite booting a stub
+      upstream of its own.
 - [ ] Decide whether to sample conversation content for online eval - the log
       is metadata-only today, and content sampling is a privacy tradeoff.
 - [ ] Move rate limiting to shared storage if this ever runs on >1 instance.

@@ -16,6 +16,11 @@ export type Outcome =
   /** This deployment is missing its settings - distinct from Azure failing,
    *  because the fix is a redeploy rather than a retry. */
   | "misconfigured"
+  /** The visitor disconnected before the stream finished - closed the tab,
+   *  navigated away, or aborted the fetch. Tokens were already being spent,
+   *  so this is not a free outcome; a high rate suggests answers arrive too
+   *  slowly to wait for. */
+  | "client_closed"
   | "upstream_error";
 
 export type RequestLog = {

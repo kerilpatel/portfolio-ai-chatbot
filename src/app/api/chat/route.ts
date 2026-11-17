@@ -245,29 +245,44 @@ export async function POST(req: NextRequest) {
       const encoder = new TextEncoder();
       const frames = streamSSE(upstream, stats, FALLBACK_REPLY);
 
+      /** Shared by both endings, so the two cannot drift apart. */
+      const logStream = (outcome: "ok" | "upstream_error" | "client_closed") =>
+        logRequest(client, {
+          outcome,
+          status: 200,
+          latencyMs: Date.now() - startedAt,
+          clientKeySource,
+          promptVersion: SYSTEM_PROMPT_VERSION,
+          messageChars: message.length,
+          historyMessages: history.messages.length,
+          promptTokens: stats.promptTokens,
+          completionTokens: stats.completionTokens,
+          cachedTokens: stats.cachedTokens,
+          ...(stats.failed ? upstreamFields(stats.error) : {}),
+        });
+
       const body = new ReadableStream({
         async pull(controller) {
           const { value, done } = await frames.next();
           if (done) {
             // Logged here rather than up front, so latency covers the whole
             // stream and the token counts have arrived.
-            logRequest(client, {
-              outcome: stats.failed ? "upstream_error" : "ok",
-              status: 200,
-              latencyMs: Date.now() - startedAt,
-              clientKeySource,
-              promptVersion: SYSTEM_PROMPT_VERSION,
-              messageChars: message.length,
-              historyMessages: history.messages.length,
-              promptTokens: stats.promptTokens,
-              completionTokens: stats.completionTokens,
-              cachedTokens: stats.cachedTokens,
-              ...(stats.failed ? upstreamFields(stats.error) : {}),
-            });
+            logStream(stats.failed ? "upstream_error" : "ok");
             controller.close();
             return;
           }
           controller.enqueue(encoder.encode(value));
+        },
+
+        // The runtime calls this when the visitor disconnects. Without it,
+        // pull is simply never called again: the request produced no log at
+        // all despite Azure having been called, and the upstream stream was
+        // left open, still generating tokens nobody would read.
+        async cancel() {
+          logStream("client_closed");
+          // Closing the generator propagates to the SDK's stream, which
+          // aborts the request to Azure rather than draining it.
+          await frames.return(undefined).catch(() => {});
         },
       });
 
