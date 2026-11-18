@@ -65,6 +65,8 @@ out = pathlib.Path(sys.argv[1])
 (out / "history-50.json").write_text(
     json.dumps({"message": "hi", "history": [{"role": "user", "content": "x"}] * 50})
 )
+(out / "stream.json").write_text(json.dumps({"message": "hi", "stream": True}))
+(out / "plain.json").write_text(json.dumps({"message": "hi"}))
 FIXPY
 
 post_file() { # post_file <fixture name>
@@ -158,6 +160,84 @@ echo
 echo "structured logging"
 check "every request logged once" 1 "$(grep -c 'chat_request' "$LOG" > /dev/null && echo 1 || echo 0)"
 check "no client ip in the log" 0 "$(grep 'chat_request' "$LOG" | grep -c '203\.0\.113\.77')"
+
+# ---------------------------------------------------------------------------
+# Phase two: the streaming paths, against a stub upstream.
+#
+# The phase above runs unconfigured, so it never opens a stream - which is why
+# the route's own stream handling was only ever checked by hand. A stub stands
+# in for Azure here, slowly enough that a client can disconnect partway.
+# ---------------------------------------------------------------------------
+echo
+echo "streaming (stub upstream)"
+
+kill "$SERVER_PID" 2>/dev/null; wait "$SERVER_PID" 2>/dev/null
+STUB_PORT=$((PORT + 1))
+STREAM_PORT=$((PORT + 2))
+STREAM_BASE="http://127.0.0.1:${STREAM_PORT}"
+STREAM_LOG="$(mktemp)"
+
+node scripts/stub-upstream.mjs "$STUB_PORT" 400 > /dev/null 2>&1 &
+STUB_PID=$!
+cleanup_stream() {
+  kill "${STUB_PID:-}" "${STREAM_PID:-}" 2>/dev/null
+  rm -f "$STREAM_LOG"
+}
+trap 'cleanup; cleanup_stream' EXIT
+
+AZURE_OPENAI_ENDPOINT="http://127.0.0.1:${STUB_PORT}" \
+AZURE_OPENAI_API_KEY=stub \
+AZURE_OPENAI_DEPLOYMENT=stub \
+AZURE_OPENAI_API_VERSION=v1 \
+ALLOWED_ORIGIN="$ORIGIN" \
+  npx next dev -p "$STREAM_PORT" > "$STREAM_LOG" 2>&1 &
+STREAM_PID=$!
+
+for _ in $(seq 1 60); do
+  curl -s -o /dev/null "${STREAM_BASE}/api/health" && break
+  if ! kill -0 "$STREAM_PID" 2>/dev/null; then
+    echo "  stream server exited early:"; tail -20 "$STREAM_LOG"; exit 1
+  fi
+  sleep 1
+done
+
+# A configured instance must report itself configured.
+check "stub instance reports configured" true \
+  "$(curl -s "${STREAM_BASE}/api/health" | python3 -c 'import json,sys; print(str(json.load(sys.stdin)["configured"]).lower())')"
+
+# Non-streaming first: proves the stub is wired in at all.
+check "plain reply succeeds" 200 \
+  "$(curl -s -o /dev/null -w '%{http_code}' -X POST "${STREAM_BASE}/api/chat" \
+     -H "X-Forwarded-For: $(client)" -H 'Content-Type: application/json' \
+     --data-binary "@${FIXTURES}/plain.json")"
+
+# Counted before the stream request, because the plain reply above logs an
+# `ok` of its own - asserting a total would couple this check to how many
+# other requests the phase happens to make.
+OK_BEFORE="$(grep -c '"outcome":"ok"' "$STREAM_LOG" || true)"
+
+STREAM_OUT="$(curl -s -N --max-time 20 -X POST "${STREAM_BASE}/api/chat" \
+  -H "X-Forwarded-For: $(client)" -H 'Content-Type: application/json' \
+  --data-binary "@${FIXTURES}/stream.json")"
+check "stream emits delta frames" 1 \
+  "$(printf '%s' "$STREAM_OUT" | grep -c '"delta"' > /dev/null && echo 1 || echo 0)"
+check "stream terminates with DONE" 1 \
+  "$(printf '%s' "$STREAM_OUT" | grep -c '^data: \[DONE\]$' | head -1)"
+check "stream carries no error frame" 0 \
+  "$(printf '%s' "$STREAM_OUT" | grep -c '"error"')"
+
+sleep 1
+check "completed stream adds one ok line" "$((OK_BEFORE + 1))" \
+  "$(grep -c '"outcome":"ok"' "$STREAM_LOG" || true)"
+
+# Disconnect partway. Without a cancel handler on the response stream this
+# logged nothing at all, while the upstream kept generating tokens.
+curl -s -N --max-time 1 -X POST "${STREAM_BASE}/api/chat" \
+  -H "X-Forwarded-For: $(client)" -H 'Content-Type: application/json' \
+  --data-binary "@${FIXTURES}/stream.json" > /dev/null 2>&1 || true
+sleep 3
+check "aborted stream logs client_closed" 1 \
+  "$(grep -c '"outcome":"client_closed"' "$STREAM_LOG" | head -1)"
 
 echo
 if [[ "$FAILURES" -eq 0 ]]; then
