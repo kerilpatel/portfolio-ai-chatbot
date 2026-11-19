@@ -19,9 +19,32 @@ LOG="$(mktemp)"
 FAILURES=0
 CHECKS=0
 
+# `next dev` runs as npm exec -> node next dev -> next-server, and signalling
+# only the pid bash captured leaves the grandchild alive. Next 16 then refuses
+# to start a second dev server in the same directory ("Another next dev server
+# is already running"), which is how this suite passed locally and failed in
+# CI. Each server is therefore started in its own process group, and the whole
+# group is signalled.
+stop_group() { # stop_group <pid>
+  [[ -z "${1:-}" ]] && return 0
+  kill -- "-$1" 2>/dev/null
+  wait "$1" 2>/dev/null
+  return 0
+}
+
+# Signalling is asynchronous, so the port has to be observed free before
+# anything may bind it again.
+await_port_free() { # await_port_free <port>
+  for _ in $(seq 1 30); do
+    curl -s -o /dev/null --max-time 1 "http://127.0.0.1:$1/api/health" || return 0
+    sleep 1
+  done
+  echo "port $1 did not free up; refusing to continue"
+  return 1
+}
+
 cleanup() {
-  [[ -n "${SERVER_PID:-}" ]] && kill "$SERVER_PID" 2>/dev/null
-  wait "${SERVER_PID:-}" 2>/dev/null
+  stop_group "${SERVER_PID:-}"
   rm -f "$LOG"
   rm -rf "${FIXTURES:-}"
 }
@@ -82,8 +105,10 @@ if curl -s -o /dev/null --max-time 2 "${BASE}/api/health"; then
 fi
 
 echo "starting dev server on :${PORT} (no Azure credentials)"
+set -m
 ALLOWED_ORIGIN="$ORIGIN" npx next dev -p "$PORT" > "$LOG" 2>&1 &
 SERVER_PID=$!
+set +m
 
 for _ in $(seq 1 60); do
   curl -s -o /dev/null "${BASE}/api/health" && break
@@ -171,20 +196,33 @@ check "no client ip in the log" 0 "$(grep 'chat_request' "$LOG" | grep -c '203\.
 echo
 echo "streaming (stub upstream)"
 
-kill "$SERVER_PID" 2>/dev/null; wait "$SERVER_PID" 2>/dev/null
+stop_group "$SERVER_PID"
+await_port_free "$PORT" || exit 1
+SERVER_PID=""
+
+# Asserted on the port rather than on a process name. The surviving process in
+# CI reported itself as "next-server (v16.4.5)", which no pattern matching the
+# launch command would have found - but it was still answering on the port,
+# and that is what Next's single-instance guard objects to.
+check "first server released the port" 000 \
+  "$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 "${BASE}/api/health")"
 STUB_PORT=$((PORT + 1))
 STREAM_PORT=$((PORT + 2))
 STREAM_BASE="http://127.0.0.1:${STREAM_PORT}"
 STREAM_LOG="$(mktemp)"
 
+set -m
 node scripts/stub-upstream.mjs "$STUB_PORT" 400 > /dev/null 2>&1 &
 STUB_PID=$!
+set +m
 cleanup_stream() {
-  kill "${STUB_PID:-}" "${STREAM_PID:-}" 2>/dev/null
+  stop_group "${STUB_PID:-}"
+  stop_group "${STREAM_PID:-}"
   rm -f "$STREAM_LOG"
 }
 trap 'cleanup; cleanup_stream' EXIT
 
+set -m
 AZURE_OPENAI_ENDPOINT="http://127.0.0.1:${STUB_PORT}" \
 AZURE_OPENAI_API_KEY=stub \
 AZURE_OPENAI_DEPLOYMENT=stub \
@@ -192,6 +230,7 @@ AZURE_OPENAI_API_VERSION=v1 \
 ALLOWED_ORIGIN="$ORIGIN" \
   npx next dev -p "$STREAM_PORT" > "$STREAM_LOG" 2>&1 &
 STREAM_PID=$!
+set +m
 
 for _ in $(seq 1 60); do
   curl -s -o /dev/null "${STREAM_BASE}/api/health" && break
