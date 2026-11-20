@@ -90,6 +90,7 @@ out = pathlib.Path(sys.argv[1])
 )
 (out / "stream.json").write_text(json.dumps({"message": "hi", "stream": True}))
 (out / "plain.json").write_text(json.dumps({"message": "hi"}))
+(out / "upstream-fail.json").write_text(json.dumps({"message": "__fail__"}))
 FIXPY
 
 post_file() { # post_file <fixture name>
@@ -183,6 +184,13 @@ check "retry-after present" 1 "$(curl -s -i -X POST "${BASE}/api/chat" -H "X-For
 
 echo
 echo "structured logging"
+# The outcome, not just the status. An absent setting and a failing upstream
+# both answer 502, and telling them apart is the whole point of having
+# separate outcomes - so asserting the status alone proves nothing.
+check "unconfigured logs misconfigured" 1 \
+  "$(grep -c '"outcome":"misconfigured"' "$LOG" > /dev/null && echo 1 || echo 0)"
+check "unconfigured never logs upstream_error" 0 \
+  "$(grep -c '"outcome":"upstream_error"' "$LOG" || true)"
 check "every request logged once" 1 "$(grep -c 'chat_request' "$LOG" > /dev/null && echo 1 || echo 0)"
 check "no client ip in the log" 0 "$(grep 'chat_request' "$LOG" | grep -c '203\.0\.113\.77')"
 
@@ -277,6 +285,38 @@ curl -s -N --max-time 1 -X POST "${STREAM_BASE}/api/chat" \
 sleep 3
 check "aborted stream logs client_closed" 1 \
   "$(grep -c '"outcome":"client_closed"' "$STREAM_LOG" | head -1)"
+
+# An upstream rejection must reach the log with enough detail to name the
+# fault. This exact error - a newer deployment refusing max_tokens - is the
+# mismatch the upstream fields were added for, and it was only ever checked
+# by hand.
+echo
+echo "upstream failure diagnosis"
+FAIL_BODY="$(curl -s -X POST "${STREAM_BASE}/api/chat" \
+  -H "X-Forwarded-For: $(client)" -H 'Content-Type: application/json' \
+  --data-binary "@${FIXTURES}/upstream-fail.json")"
+# `status` targets phase one's port, which is stopped by now - hence the
+# explicit base here, as elsewhere in this phase.
+check "upstream failure answers 502" 502 \
+  "$(curl -s -o /dev/null -w '%{http_code}' -X POST "${STREAM_BASE}/api/chat" \
+     -H "X-Forwarded-For: $(client)" -H 'Content-Type: application/json' \
+     --data-binary "@${FIXTURES}/upstream-fail.json")"
+check "visitor gets the fallback reply" 1 \
+  "$(printf '%s' "$FAIL_BODY" | grep -c 'scheduling a call')"
+check "fallback leaks no upstream detail" 0 \
+  "$(printf '%s' "$FAIL_BODY" | grep -ci 'max_tokens\|unsupported')"
+
+sleep 1
+check "logs upstream_error" 1 \
+  "$(grep -c '"outcome":"upstream_error"' "$STREAM_LOG" > /dev/null && echo 1 || echo 0)"
+check "log names the upstream status" 1 \
+  "$(grep -c '"upstreamStatus":400' "$STREAM_LOG" > /dev/null && echo 1 || echo 0)"
+check "log names the upstream code" 1 \
+  "$(grep -c '"upstreamCode":"unsupported_parameter"' "$STREAM_LOG" > /dev/null && echo 1 || echo 0)"
+check "log names the offending parameter" 1 \
+  "$(grep -c '"upstreamParam":"max_tokens"' "$STREAM_LOG" > /dev/null && echo 1 || echo 0)"
+check "log omits the upstream message text" 0 \
+  "$(grep '"event":"chat_request"' "$STREAM_LOG" | grep -ci 'Unsupported parameter')"
 
 echo
 if [[ "$FAILURES" -eq 0 ]]; then

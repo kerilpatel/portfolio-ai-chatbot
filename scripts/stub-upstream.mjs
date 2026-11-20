@@ -17,6 +17,25 @@ const port = Number(process.argv[2] ?? 9990);
 const delayMs = Number(process.argv[3] ?? 400);
 const WORDS = ["Hello ", "from ", "the ", "stub ", "upstream."];
 
+/**
+ * A request whose message is this sentinel gets an error back instead, so the
+ * upstream-failure path can be exercised against the same server rather than
+ * needing a second one. The shape is the real thing: what Azure returns when
+ * a newer deployment rejects `max_tokens`, which is the specific mismatch the
+ * upstream fields in the log exist to name.
+ */
+const FAIL_SENTINEL = "__fail__";
+const AZURE_ERROR = {
+  error: {
+    message:
+      "Unsupported parameter: 'max_tokens' is not supported with this model. " +
+      "Use 'max_completion_tokens' instead.",
+    type: "invalid_request_error",
+    param: "max_tokens",
+    code: "unsupported_parameter",
+  },
+};
+
 const streamChunk = (content) =>
   `data: ${JSON.stringify({
     id: "stub",
@@ -48,10 +67,21 @@ http
     await new Promise((resolve) => req.on("end", resolve));
 
     let wantsStream = false;
+    let shouldFail = false;
     try {
-      wantsStream = JSON.parse(raw).stream === true;
+      const parsed = JSON.parse(raw);
+      wantsStream = parsed.stream === true;
+      shouldFail = (parsed.messages ?? []).some(
+        (m) => typeof m.content === "string" && m.content.includes(FAIL_SENTINEL),
+      );
     } catch {
       // Treat an unparseable body as non-streaming; the route validates it.
+    }
+
+    if (shouldFail) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(AZURE_ERROR));
+      return;
     }
 
     if (!wantsStream) {

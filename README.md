@@ -57,8 +57,10 @@ npm run smoke
 
 Boots the app and asserts every status code the API section documents, then
 runs a second phase against `scripts/stub-upstream.mjs` to cover the
-streaming paths - delta frames, the `[DONE]` terminator, and both the
-completed and client-disconnected endings. Needs no credentials. Runs in CI.
+streaming paths - delta frames, the `[DONE]` terminator, both the completed
+and client-disconnected endings, and an upstream rejection reaching the log
+with the status, code and offending parameter that name it. Needs no
+credentials. Runs in CI.
 
 Set `AZURE_OPENAI_REASONING_MODEL=true` if the chat deployment is a reasoning
 model (o-series, GPT-5 reasoning family). Those reject `max_tokens` and
