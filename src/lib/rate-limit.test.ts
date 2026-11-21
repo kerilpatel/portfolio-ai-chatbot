@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it } from "node:test";
 
 import {
-  MAX_REQUESTS,
   __resetRateLimit,
   checkRateLimit,
   identifyClient,
+  maxRequests,
   rateLimitHeaders,
 } from "./rate-limit.ts";
 
@@ -14,11 +14,14 @@ const headers = (value?: string) =>
 
 const savedHops = process.env.TRUSTED_PROXY_HOPS;
 const savedRealIp = process.env.TRUST_X_REAL_IP;
+const savedMax = process.env.RATE_LIMIT_MAX;
 afterEach(() => {
   if (savedHops === undefined) delete process.env.TRUSTED_PROXY_HOPS;
   else process.env.TRUSTED_PROXY_HOPS = savedHops;
   if (savedRealIp === undefined) delete process.env.TRUST_X_REAL_IP;
   else process.env.TRUST_X_REAL_IP = savedRealIp;
+  if (savedMax === undefined) delete process.env.RATE_LIMIT_MAX;
+  else process.env.RATE_LIMIT_MAX = savedMax;
 });
 
 describe("identifyClient", () => {
@@ -204,15 +207,15 @@ describe("rateLimitHeaders", () => {
 
   it("reports the allowance counting down", () => {
     const first = rateLimitHeaders(checkRateLimit("8.8.8.1"));
-    assert.equal(first["X-RateLimit-Limit"], String(MAX_REQUESTS));
-    assert.equal(first["X-RateLimit-Remaining"], String(MAX_REQUESTS - 1));
+    assert.equal(first["X-RateLimit-Limit"], String(maxRequests()));
+    assert.equal(first["X-RateLimit-Remaining"], String(maxRequests() - 1));
 
     const second = rateLimitHeaders(checkRateLimit("8.8.8.1"));
-    assert.equal(second["X-RateLimit-Remaining"], String(MAX_REQUESTS - 2));
+    assert.equal(second["X-RateLimit-Remaining"], String(maxRequests() - 2));
   });
 
   it("reports zero remaining once blocked", () => {
-    for (let i = 0; i < MAX_REQUESTS; i++) checkRateLimit("8.8.8.2");
+    for (let i = 0; i < maxRequests(); i++) checkRateLimit("8.8.8.2");
     const headers = rateLimitHeaders(checkRateLimit("8.8.8.2"));
     assert.equal(headers["X-RateLimit-Remaining"], "0");
   });
@@ -225,7 +228,7 @@ describe("rateLimitHeaders", () => {
   // A blocked caller's reset and Retry-After describe the same moment, so they
   // must not disagree.
   it("agrees with Retry-After when blocked", () => {
-    for (let i = 0; i < MAX_REQUESTS; i++) checkRateLimit("8.8.8.4");
+    for (let i = 0; i < maxRequests(); i++) checkRateLimit("8.8.8.4");
     const result = checkRateLimit("8.8.8.4");
     assert.equal(result.allowed, false);
     assert.ok(!result.allowed);
@@ -233,5 +236,45 @@ describe("rateLimitHeaders", () => {
       rateLimitHeaders(result)["X-RateLimit-Reset"],
       String(result.retryAfterSeconds),
     );
+  });
+});
+
+describe("maxRequests", () => {
+  beforeEach(() => __resetRateLimit());
+
+  it("defaults to 20", () => {
+    delete process.env.RATE_LIMIT_MAX;
+    assert.equal(maxRequests(), 20);
+  });
+
+  it("honours a valid override", () => {
+    process.env.RATE_LIMIT_MAX = "100";
+    assert.equal(maxRequests(), 100);
+  });
+
+  it("ignores junk, zero and negative values", () => {
+    for (const bad of ["abc", "0", "-5", "1.5", ""]) {
+      process.env.RATE_LIMIT_MAX = bad;
+      assert.equal(maxRequests(), 20, `should reject ${JSON.stringify(bad)}`);
+    }
+  });
+
+  // The eval suite sends one request per dataset row; with the default limit
+  // most rows were answered by the limiter instead of the model.
+  it("lets a raised limit cover a full eval run", () => {
+    process.env.RATE_LIMIT_MAX = "100";
+    for (let i = 0; i < 49; i++) {
+      assert.equal(
+        checkRateLimit("eval-runner").allowed,
+        true,
+        `row ${i + 1} of 49 was limited`,
+      );
+    }
+  });
+
+  it("still limits at the raised ceiling", () => {
+    process.env.RATE_LIMIT_MAX = "25";
+    for (let i = 0; i < 25; i++) checkRateLimit("capped");
+    assert.equal(checkRateLimit("capped").allowed, false);
   });
 });

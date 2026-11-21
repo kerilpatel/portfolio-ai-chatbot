@@ -79,9 +79,16 @@ cacheable prefix is large enough yet.
 ## Evals
 
 ```bash
-npm run dev                                   # the suite calls the live endpoint
+RATE_LIMIT_MAX=100 npm run dev                # the suite calls the live endpoint
 npx promptfoo eval -c eval/promptfooconfig.yaml
 ```
+
+The raised limit matters: the suite sends one request per row, and the default
+ceiling of 20 is well below the 49 rows. Without it most rows are answered by
+the rate limiter, whose reply arrives in the same `{ reply }` shape as a real
+answer - so the rubrics grade the fallback text and fail in a way that reads
+as a prompt problem. A `not-contains` assertion catches that case explicitly
+if it happens anyway.
 
 49 rows grouped by `category`. `factual` (29) checks answers against the
 content in `src/lib/about-me.ts`; `unknown` (7) checks the bot admits what it

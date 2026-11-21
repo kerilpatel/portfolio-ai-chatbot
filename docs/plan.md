@@ -148,6 +148,10 @@ No npm package is published between them - the boundary is HTTP. A client wrappe
 - [x] CI on every push/PR: lint, typecheck, test, build, smoke (no secrets
       needed). The smoke script boots the app and asserts every documented
       status code, replacing a month of running those checks by hand.
+- [x] Made a full eval run possible: `RATE_LIMIT_MAX` raises the ceiling, and
+      a `not-contains` assertion fails loudly if a fallback reply is graded as
+      an answer. The suite sends 49 requests against a default limit of 20, so
+      29 rows were being graded against the rate-limit message.
 - [ ] Add the Promptfoo eval run to CI - needs Azure credentials as repo
       secrets and a filled-in golden dataset first.
 - [x] Write the system prompt (`src/lib/system-prompt.ts`) — scoping + grounding.

@@ -8,7 +8,22 @@
  * to blunt a script hammering the endpoint, not to be exact.
  */
 const WINDOW_MS = 15 * 60 * 1000;
-export const MAX_REQUESTS = 20;
+const DEFAULT_MAX_REQUESTS = 20;
+
+/**
+ * Requests allowed per window, overridable with RATE_LIMIT_MAX.
+ *
+ * The override exists for the eval suite. It sends one request per dataset
+ * row - 49 of them - against a limit of 20, so most rows were answered with
+ * the rate-limit reply. That reply arrives in the normal `{ reply }` shape,
+ * so Promptfoo's transformResponse extracts it happily and grades it as the
+ * bot's answer: the rubrics fail on it and the failures read as prompt
+ * quality problems rather than a limiter doing its job.
+ */
+export function maxRequests(): number {
+  const raw = Number(process.env.RATE_LIMIT_MAX);
+  return Number.isInteger(raw) && raw > 0 ? raw : DEFAULT_MAX_REQUESTS;
+}
 
 /** Full sweep cadence, to stop the map growing without bound. */
 const SWEEP_INTERVAL_MS = 60 * 1000;
@@ -139,7 +154,7 @@ export function rateLimitHeaders(
   result: RateLimitResult,
 ): Record<string, string> {
   return {
-    "X-RateLimit-Limit": String(MAX_REQUESTS),
+    "X-RateLimit-Limit": String(maxRequests()),
     "X-RateLimit-Remaining": String(result.allowed ? result.remaining : 0),
     "X-RateLimit-Reset": String(result.resetSeconds),
   };
@@ -157,7 +172,7 @@ export function checkRateLimit(key: string): RateLimitResult {
       ? Math.ceil(WINDOW_MS / 1000)
       : Math.max(1, Math.ceil((timestamps[0] + WINDOW_MS - now) / 1000));
 
-  if (recent.length >= MAX_REQUESTS) {
+  if (recent.length >= maxRequests()) {
     hits.set(key, recent);
     const retryAfterSeconds = resetIn(recent);
     return {
@@ -171,7 +186,7 @@ export function checkRateLimit(key: string): RateLimitResult {
   hits.set(key, recent);
   return {
     allowed: true,
-    remaining: MAX_REQUESTS - recent.length,
+    remaining: maxRequests() - recent.length,
     resetSeconds: resetIn(recent),
   };
 }

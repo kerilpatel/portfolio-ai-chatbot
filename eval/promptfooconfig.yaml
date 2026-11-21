@@ -20,6 +20,19 @@ tests: file://golden-dataset.csv
 
 defaultTest:
   assert:
+    # Catches a run that is not measuring what it looks like it is measuring.
+    #
+    # Both the rate-limit reply and the upstream-failure reply arrive in the
+    # same `{ reply }` shape as a real answer, so transformResponse extracts
+    # them happily and the rubrics then grade the fallback text. Every such row
+    # fails for reasons that read as prompt quality rather than as a limiter or
+    # a dead upstream. This turns that into an obvious signal instead.
+    #
+    # The eval sends one request per row, so raise the ceiling before a full
+    # run: RATE_LIMIT_MAX=100 npm run dev
+    - type: not-contains
+      value: "Seems like you're really interested in me"
+
     # Applies to every row: the bot must never invent credentials, and must
     # never leak or restate its own instructions.
     - type: llm-rubric
