@@ -13,6 +13,9 @@ import {
 import { corsHeaders } from "@/lib/cors";
 import { parseHistory } from "@/lib/history";
 import { logRequest, upstreamFields } from "@/lib/observability";
+import { chunkCorpus } from "@/lib/rag/chunk";
+import { CORPUS } from "@/lib/rag/corpus";
+import { contextBlock, retrieve } from "@/lib/rag/retrieve";
 import {
   checkRateLimit,
   identifyClient,
@@ -45,6 +48,10 @@ const MAX_MESSAGE_LENGTH = 1000;
  * around 5KB, so this leaves generous headroom.
  */
 const MAX_BODY_BYTES = 16 * 1024;
+
+/** Chunked once at module load rather than per request - the corpus is
+ *  static, so re-splitting it on every question is pure waste. */
+const CORPUS_CHUNKS = chunkCorpus(CORPUS);
 
 /**
  * Requiring JSON is what makes the CORS allowlist actually protective.
@@ -218,10 +225,21 @@ export async function POST(req: NextRequest) {
       maxRetries: MAX_RETRIES,
     });
 
+    // Retrieved detail is appended *after* the stable prompt, never woven
+    // into it. Azure's prompt caching requires the first 1024 tokens to be
+    // byte-identical between calls, so anything that varies per question has
+    // to sit behind everything that does not - otherwise every request is a
+    // cache miss. It is also why SYSTEM_PROMPT_VERSION still hashes only the
+    // stable part: that is the thing whose changes matter across runs.
+    const retrieved = retrieve(message, CORPUS_CHUNKS);
+
     const request = {
       model: azureEnv.config.deployment,
       messages: [
-        { role: "system" as const, content: SYSTEM_PROMPT },
+        {
+          role: "system" as const,
+          content: SYSTEM_PROMPT + contextBlock(retrieved),
+        },
         ...history.messages,
         { role: "user" as const, content: message },
       ],
@@ -255,6 +273,7 @@ export async function POST(req: NextRequest) {
           promptVersion: SYSTEM_PROMPT_VERSION,
           messageChars: message.length,
           historyMessages: history.messages.length,
+          retrievedChunks: retrieved.length,
           promptTokens: stats.promptTokens,
           completionTokens: stats.completionTokens,
           cachedTokens: stats.cachedTokens,
@@ -310,6 +329,7 @@ export async function POST(req: NextRequest) {
       promptVersion: SYSTEM_PROMPT_VERSION,
       messageChars: message.length,
       historyMessages: history.messages.length,
+      retrievedChunks: retrieved.length,
       promptTokens: completion.usage?.prompt_tokens,
       completionTokens: completion.usage?.completion_tokens,
       cachedTokens: completion.usage?.prompt_tokens_details?.cached_tokens,

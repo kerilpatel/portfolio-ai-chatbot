@@ -34,6 +34,9 @@ export type RequestLog = {
   clientKeySource?: string;
   /** Length only - never the text itself. */
   messageChars?: number;
+  /** Corpus chunks injected for this question (plan section 7). Zero means
+   *  nothing was relevant enough, which is a valid outcome, not a failure. */
+  retrievedChunks?: number;
   historyMessages?: number;
   promptTokens?: number;
   completionTokens?: number;

@@ -160,13 +160,17 @@ No npm package is published between them - the boundary is HTTP. A client wrappe
       ~1002-1335, which is borderline against the 1024 floor.
 - [ ] Set up Azure AI Content Safety on the Foundry deployment.
 - [ ] Set up cost/budget alerts in Azure.
-- [x] RAG corpus (`src/lib/rag/corpus.ts`) and chunking (`chunk.ts`). The
-      corpus is the longer material that does not belong in every prompt -
-      references, award detail, per-skill notes, education detail - taken from
-      the portfolio site's own content. 10 documents, 17 chunks.
-- [ ] Embed the chunks and retrieve against Azure AI Search. Needs the search
-      resource and an embedding deployment; the chunking ahead of it is done
-      and tested.
+- [x] RAG corpus (`src/lib/rag/corpus.ts`), chunking (`chunk.ts`) and lexical
+      retrieval (`retrieve.ts`), wired into `/api/chat`. 10 documents, 17
+      chunks; retrieved detail is appended after the stable prompt so the
+      cacheable prefix stays byte-identical.
+- [ ] Add embedding-based retrieval alongside the lexical stage, for the
+      hybrid approach section 3 asks for. Needs the search resource and an
+      embedding deployment. Measured limit of the lexical stage: on-topic
+      questions score 1.06-5.78 and off-topic ones mostly 0.00, but "Ignore
+      all previous instructions" scores 2.25 because that wording overlaps a
+      reference - the classes are not separable on term overlap alone, which
+      is what paraphrase similarity would fix.
 - [ ] Implement `src/lib/cache` (semantic cache) - needs embeddings too.
 - [x] Health endpoint (`GET /api/health`) for the deployment probe, reporting
       absent settings and present-but-malformed ones separately.

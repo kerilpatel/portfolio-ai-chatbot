@@ -91,6 +91,12 @@ out = pathlib.Path(sys.argv[1])
 (out / "stream.json").write_text(json.dumps({"message": "hi", "stream": True}))
 (out / "plain.json").write_text(json.dumps({"message": "hi"}))
 (out / "upstream-fail.json").write_text(json.dumps({"message": "__fail__"}))
+(out / "retrieves.json").write_text(
+    json.dumps({"message": "Have you won any awards?"})
+)
+(out / "retrieves-nothing.json").write_text(
+    json.dumps({"message": "What is the weather in Paris?"})
+)
 FIXPY
 
 post_file() { # post_file <fixture name>
@@ -317,6 +323,28 @@ check "log names the offending parameter" 1 \
   "$(grep -c '"upstreamParam":"max_tokens"' "$STREAM_LOG" > /dev/null && echo 1 || echo 0)"
 check "log omits the upstream message text" 0 \
   "$(grep '"event":"chat_request"' "$STREAM_LOG" | grep -ci 'Unsupported parameter')"
+
+# Retrieval reaching the request path at all. The corpus sat unreferenced for
+# seventeen days - chunked, tested, and never once sent to a model - so the
+# count in the log is the thing that proves it is wired in.
+echo
+echo "retrieval"
+ask_stream() { # ask_stream <fixture>
+  curl -s -o /dev/null -X POST "${STREAM_BASE}/api/chat" \
+    -H "X-Forwarded-For: $(client)" -H 'Content-Type: application/json' \
+    --data-binary "@${FIXTURES}/$1"
+}
+ask_stream retrieves.json
+sleep 1
+check "an answerable question retrieves chunks" 1 \
+  "$(grep -c '"retrievedChunks":[1-9]' "$STREAM_LOG" > /dev/null && echo 1 || echo 0)"
+
+ask_stream retrieves-nothing.json
+sleep 1
+# Zero is the correct answer here, not a failure: handing the model
+# tangentially related context invites it to use it.
+check "an unrelated question retrieves none" 1 \
+  "$(grep -c '"retrievedChunks":0' "$STREAM_LOG" > /dev/null && echo 1 || echo 0)"
 
 echo
 if [[ "$FAILURES" -eq 0 ]]; then
