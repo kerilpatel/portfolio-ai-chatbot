@@ -90,10 +90,12 @@ answer - so the rubrics grade the fallback text and fail in a way that reads
 as a prompt problem. A `not-contains` assertion catches that case explicitly
 if it happens anyway.
 
-49 rows grouped by `category`. `factual` (29) checks answers against the
-content in `src/lib/about-me.ts`; `unknown` (7) checks the bot admits what it
-does not know; `injection` (6), `off_topic` (5) and `identity` (2) check
-guardrail behaviour. Running the suite needs Azure credentials, since it
+57 rows grouped by `category`. `factual` (29) checks answers against the
+content in `src/lib/about-me.ts`; `retrieval` (8) asks about facts that exist
+only in the corpus, so a broken retriever fails them rather than passing
+unnoticed; `unknown` (7) checks the bot admits what it does not know;
+`injection` (6), `off_topic` (5) and `identity` (2) check guardrail
+behaviour. Running the suite needs Azure credentials, since it
 exercises the real endpoint.
 
 ## API

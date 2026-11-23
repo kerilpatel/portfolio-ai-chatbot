@@ -107,9 +107,10 @@ No npm package is published between them - the boundary is HTTP. A client wrappe
 
 ## 9. Open Questions / Next Steps
 
-- [x] Golden dataset complete at 49 rows: 29 factual, 7 unknown-fact, 6
-      injection, 5 off-topic, 2 identity. Every factual rubric asserts against
-      a fact that is actually in `about-me.ts`, checked mechanically.
+- [x] Golden dataset at 57 rows: 29 factual, 8 retrieval, 7 unknown-fact, 6
+      injection, 5 off-topic, 2 identity. Factual rubrics assert against facts
+      actually in `about-me.ts`; retrieval rows ask about corpus-only material,
+      and a unit test pins which document each depends on.
 - [x] "About Me" format defined and populated in `src/lib/about-me.ts`:
       identity, summary, experience, skills, projects, education,
       certifications, contact.

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import { type Chunk, chunkCorpus } from "./chunk.ts";
@@ -127,4 +128,68 @@ describe("contextBlock", () => {
     const empty: Chunk[] = [];
     assert.ok(!contextBlock(empty).includes("Retrieved detail"));
   });
+});
+
+describe("eval dataset coupling", () => {
+  /**
+   * The dataset's `retrieval` rows ask about facts that exist only in the
+   * corpus - references, the awards, the published paper, per-skill detail.
+   * If the retriever stops finding them, those rows become unanswerable and
+   * the eval reports a prompt problem for what is actually a retrieval
+   * regression.
+   *
+   * Each row names the document it depends on. Asserting merely that
+   * *something* was retrieved is not enough, and was tried first: without
+   * plural folding, "What do your references say?" still retrieves
+   * education-detail, so a non-empty check passed while the row was broken.
+   */
+  const EXPECTED: ReadonlyArray<readonly [string, string]> = [
+    ["What do your references say about you?", "reference-"],
+    ["Who has given you a reference?", "reference-"],
+    [
+      "What did your manager at Zebra say about you?",
+      "reference-manjunath-gundurao",
+    ],
+    ["Have you published any research?", "achievement-best-presentation"],
+    ["Have you won anything at work?", "achievement-secure-code-warrior"],
+    ["Where exactly did you use Dart?", "skills-detail"],
+    ["Who issued your AWS certification?", "certifications-detail"],
+    [
+      "What has anyone said about your testing or attention to detail?",
+      "skills-detail",
+    ],
+  ];
+
+  const datasetRows = readFileSync(
+    new URL("../../../eval/golden-dataset.csv", import.meta.url),
+    "utf8",
+  )
+    .split("\n")
+    .slice(1)
+    .filter(Boolean)
+    .map((line) => /^"((?:[^"]|"")*)","([^"]*)"/.exec(line))
+    .filter((m): m is RegExpExecArray => m !== null)
+    .filter((m) => m[2] === "retrieval")
+    .map((m) => m[1].replace(/""/g, '"'));
+
+  it("covers every retrieval row in the dataset", () => {
+    const covered = new Set(EXPECTED.map(([q]) => q));
+    for (const question of datasetRows) {
+      assert.ok(
+        covered.has(question),
+        `dataset row has no expectation here: ${question}`,
+      );
+    }
+    assert.equal(datasetRows.length, EXPECTED.length);
+  });
+
+  for (const [question, expected] of EXPECTED) {
+    it(`retrieves ${expected} for: ${question}`, () => {
+      const found = retrieve(question, CHUNKS).map((c) => c.documentId);
+      assert.ok(
+        found.some((id) => id.startsWith(expected)),
+        `expected a ${expected} chunk, got: ${found.join(", ") || "(nothing)"}`,
+      );
+    });
+  }
 });
