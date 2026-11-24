@@ -12,7 +12,11 @@ import {
 } from "@/lib/config";
 import { corsHeaders } from "@/lib/cors";
 import { parseHistory } from "@/lib/history";
-import { logRequest, upstreamFields } from "@/lib/observability";
+import {
+  logRequest,
+  retrievalFields,
+  upstreamFields,
+} from "@/lib/observability";
 import { chunkCorpus } from "@/lib/rag/chunk";
 import { CORPUS } from "@/lib/rag/corpus";
 import { contextBlock, retrieve } from "@/lib/rag/retrieve";
@@ -196,6 +200,22 @@ export async function POST(req: NextRequest) {
     return bad("`stream` must be a boolean");
   }
 
+  // Retrieved before the config check, and therefore before the try, for two
+  // reasons. It costs a term scan over seventeen static chunks, so running it
+  // on a request that turns out to be misconfigured wastes nothing worth
+  // saving. And it means every request that got past validation reports what
+  // retrieval found, so `retrievedChunks: 0` has exactly one meaning - nothing
+  // scored high enough - rather than also meaning the request died before
+  // retrieval ran.
+  //
+  // The result is appended *after* the stable prompt, never woven into it.
+  // Azure's prompt caching requires the first 1024 tokens to be byte-identical
+  // between calls, so anything that varies per question has to sit behind
+  // everything that does not - otherwise every request is a cache miss. It is
+  // also why SYSTEM_PROMPT_VERSION still hashes only the stable part: that is
+  // the thing whose changes matter across runs.
+  const retrieved = retrieve(message, CORPUS_CHUNKS);
+
   // Read before the try: a missing setting is a broken deploy, and logging it
   // as an upstream failure would make the two indistinguishable in the logs -
   // one needs a redeploy, the other a retry.
@@ -214,6 +234,7 @@ export async function POST(req: NextRequest) {
       promptVersion: SYSTEM_PROMPT_VERSION,
       messageChars: message.length,
       historyMessages: history.messages.length,
+      ...retrievalFields(retrieved),
     });
     return reply({ reply: FALLBACK_REPLY }, 502);
   }
@@ -224,14 +245,6 @@ export async function POST(req: NextRequest) {
       timeout: timeoutMs(),
       maxRetries: MAX_RETRIES,
     });
-
-    // Retrieved detail is appended *after* the stable prompt, never woven
-    // into it. Azure's prompt caching requires the first 1024 tokens to be
-    // byte-identical between calls, so anything that varies per question has
-    // to sit behind everything that does not - otherwise every request is a
-    // cache miss. It is also why SYSTEM_PROMPT_VERSION still hashes only the
-    // stable part: that is the thing whose changes matter across runs.
-    const retrieved = retrieve(message, CORPUS_CHUNKS);
 
     const request = {
       model: azureEnv.config.deployment,
@@ -273,7 +286,7 @@ export async function POST(req: NextRequest) {
           promptVersion: SYSTEM_PROMPT_VERSION,
           messageChars: message.length,
           historyMessages: history.messages.length,
-          retrievedChunks: retrieved.length,
+          ...retrievalFields(retrieved),
           promptTokens: stats.promptTokens,
           completionTokens: stats.completionTokens,
           cachedTokens: stats.cachedTokens,
@@ -329,7 +342,7 @@ export async function POST(req: NextRequest) {
       promptVersion: SYSTEM_PROMPT_VERSION,
       messageChars: message.length,
       historyMessages: history.messages.length,
-      retrievedChunks: retrieved.length,
+      ...retrievalFields(retrieved),
       promptTokens: completion.usage?.prompt_tokens,
       completionTokens: completion.usage?.completion_tokens,
       cachedTokens: completion.usage?.prompt_tokens_details?.cached_tokens,
@@ -345,6 +358,7 @@ export async function POST(req: NextRequest) {
       promptVersion: SYSTEM_PROMPT_VERSION,
       messageChars: message.length,
       historyMessages: history.messages.length,
+      ...retrievalFields(retrieved),
       ...upstreamFields(error),
     });
     return reply({ reply: FALLBACK_REPLY }, 502);

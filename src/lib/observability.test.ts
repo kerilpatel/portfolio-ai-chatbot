@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it, mock } from "node:test";
 
-import { hashClientKey, logRequest, upstreamFields } from "./observability.ts";
+import {
+  hashClientKey,
+  logRequest,
+  retrievalFields,
+  upstreamFields,
+} from "./observability.ts";
+import { type Chunk } from "./rag/chunk.ts";
 
 describe("hashClientKey", () => {
   it("is stable for the same key", () => {
@@ -62,6 +68,19 @@ describe("logRequest", () => {
     assert.ok(!("messageChars" in entry));
   });
 
+  it("includes the retrieved chunk ids", () => {
+    const entry = capture(() =>
+      logRequest("1.1.1.1", {
+        outcome: "ok",
+        status: 200,
+        latencyMs: 10,
+        ...retrievalFields([{ id: "education-detail#0" }]),
+      }),
+    );
+    assert.equal(entry.retrievedChunks, 1);
+    assert.deepEqual(entry.retrievedChunkIds, ["education-detail#0"]);
+  });
+
   it("includes token counts when present", () => {
     const entry = capture(() =>
       logRequest("1.1.1.1", {
@@ -75,6 +94,54 @@ describe("logRequest", () => {
     );
     assert.equal(entry.promptTokens, 500);
     assert.equal(entry.cachedTokens, 448);
+  });
+});
+
+describe("retrievalFields", () => {
+  it("names which chunks were sent, in the order they were sent", () => {
+    assert.deepEqual(
+      retrievalFields([
+        { id: "achievement-secure-code-warrior#0" },
+        { id: "achievement-best-presentation#0" },
+      ]),
+      {
+        retrievedChunks: 2,
+        retrievedChunkIds: [
+          "achievement-secure-code-warrior#0",
+          "achievement-best-presentation#0",
+        ],
+      },
+    );
+  });
+
+  // Zero is a real outcome, so the count must still be reported; the empty
+  // list adds nothing over it and only lengthens every off-topic log line.
+  it("reports the count but no list when nothing was retrieved", () => {
+    assert.deepEqual(retrievalFields([]), { retrievedChunks: 0 });
+  });
+
+  // The reason the helper exists rather than two fields set side by side: a
+  // count that disagrees with the list is worse than either alone, because it
+  // makes the log untrustworthy without being obviously wrong.
+  it("keeps the count and the list in agreement", () => {
+    const fields = retrievalFields([
+      { id: "a#0" },
+      { id: "b#1" },
+      { id: "c#0" },
+    ]);
+    assert.equal(fields.retrievedChunks, fields.retrievedChunkIds?.length);
+  });
+
+  // Ids identify documents in a committed file, never the visitor's question.
+  // Typed as a real Chunk, so this is the whole object the route hands over -
+  // text included - and not a trimmed-down stand-in that could not leak.
+  it("carries no chunk text", () => {
+    const chunk: Chunk = {
+      id: "reference-x#0",
+      documentId: "reference-x",
+      text: "secret",
+    };
+    assert.ok(!JSON.stringify(retrievalFields([chunk])).includes("secret"));
   });
 });
 

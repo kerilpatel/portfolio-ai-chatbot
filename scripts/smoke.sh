@@ -338,6 +338,11 @@ ask_stream retrieves.json
 sleep 1
 check "an answerable question retrieves chunks" 1 \
   "$(grep -c '"retrievedChunks":[1-9]' "$STREAM_LOG" > /dev/null && echo 1 || echo 0)"
+# The count alone would pass just as happily on the wrong chunks. "Have you
+# won any awards?" must reach the two achievement documents specifically - if
+# it starts retrieving, say, a reference instead, the count never moves.
+check "the log names which chunks" 1 \
+  "$(grep -c '"retrievedChunkIds":\["achievement-secure-code-warrior#0","achievement-best-presentation#0"\]' "$STREAM_LOG" > /dev/null && echo 1 || echo 0)"
 
 ask_stream retrieves-nothing.json
 sleep 1
@@ -345,6 +350,19 @@ sleep 1
 # tangentially related context invites it to use it.
 check "an unrelated question retrieves none" 1 \
   "$(grep -c '"retrievedChunks":0' "$STREAM_LOG" > /dev/null && echo 1 || echo 0)"
+# Zero reports the count and nothing else: an empty list on every off-topic
+# question is noise the count already carries.
+check "retrieving none names no chunks" 0 \
+  "$(grep '"retrievedChunks":0' "$STREAM_LOG" | grep -c 'retrievedChunkIds')"
+
+# A failed call used to report no retrieval at all, because the chunks were
+# scoped inside the try the failure escaped - so the requests most worth
+# diagnosing carried the least to diagnose them with.
+# Counted the other way round - lines *missing* the field - so adding a
+# second failing request cannot change the expected number. "logs
+# upstream_error" above already establishes such lines exist.
+check "every upstream failure reports retrieval" 0 \
+  "$(grep '"outcome":"upstream_error"' "$STREAM_LOG" | grep -cv '"retrievedChunks"')"
 
 echo
 if [[ "$FAILURES" -eq 0 ]]; then

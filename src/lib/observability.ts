@@ -37,6 +37,11 @@ export type RequestLog = {
   /** Corpus chunks injected for this question (plan section 7). Zero means
    *  nothing was relevant enough, which is a valid outcome, not a failure. */
   retrievedChunks?: number;
+  /** Which chunks, by `<document id>#<n>`. The count says retrieval fired;
+   *  only the ids say whether it fired at the right thing, which is the
+   *  question you actually have when an answer comes back wrong. Omitted when
+   *  nothing was retrieved - `retrievedChunks: 0` already says that. */
+  retrievedChunkIds?: string[];
   historyMessages?: number;
   promptTokens?: number;
   completionTokens?: number;
@@ -69,6 +74,25 @@ export function upstreamFields(error: unknown): {
     upstreamStatus: typeof status === "number" ? status : undefined,
     upstreamCode: typeof code === "string" ? code : undefined,
     upstreamParam: typeof param === "string" ? param : undefined,
+  };
+}
+
+/**
+ * Both retrieval fields from one list, so the count and the ids cannot
+ * disagree about what was sent.
+ *
+ * Ids are metadata about the corpus - a static, committed file - not about the
+ * visitor, so they stay on the right side of this module's no-content rule.
+ */
+export function retrievalFields(chunks: { id: string }[]): {
+  retrievedChunks: number;
+  retrievedChunkIds?: string[];
+} {
+  return {
+    retrievedChunks: chunks.length,
+    ...(chunks.length > 0
+      ? { retrievedChunkIds: chunks.map((chunk) => chunk.id) }
+      : {}),
   };
 }
 

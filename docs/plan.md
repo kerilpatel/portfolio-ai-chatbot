@@ -128,6 +128,13 @@ No npm package is published between them - the boundary is HTTP. A client wrappe
 - [x] Structured per-request logging: latency, tokens, outcome (section 7).
       Outcomes distinguish a misconfigured deploy from an upstream failure,
       and a failure carries the upstream status/code/param that caused it.
+- [x] The log names _which_ corpus chunks were injected, not just how many -
+      section 7 asks for retrieval chunks used, and a count cannot tell a
+      wrong answer built on the wrong chunks from one built on the right
+      ones. Retrieval now runs before the config check, so the field means
+      the same thing on every outcome; it was previously scoped inside the
+      `try`, so an upstream failure - the case most worth diagnosing -
+      reported no retrieval at all.
 - [x] Prompt/context versioning: hash of the live prompt, logged per request
       (section 7). Derived, not hand-maintained, so it can't go stale.
 - [x] Streaming responses, opt-in via `stream: true` (section 7). Framing is
