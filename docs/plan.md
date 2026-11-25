@@ -172,13 +172,25 @@ No npm package is published between them - the boundary is HTTP. A client wrappe
       retrieval (`retrieve.ts`), wired into `/api/chat`. 10 documents, 17
       chunks; retrieved detail is appended after the stable prompt so the
       cacheable prefix stays byte-identical.
+- [x] Fixed the stopword list, which was weighting signal-free words as the
+      most discriminating terms in the corpus. `idf` rewards rarity, so
+      "about" - in 1 of 17 chunks - scored 2.89, and "Tell me more about
+      that" scored 5.78, tying the best genuinely on-topic question there is.
+      A content-free follow-up could outrank a real question. Five such
+      queries and two injection rows now retrieve nothing; no dataset row
+      lost the document its rubric depends on, and five rows improved by
+      dropping an `education-detail` chunk they were matching on "about".
 - [ ] Add embedding-based retrieval alongside the lexical stage, for the
       hybrid approach section 3 asks for. Needs the search resource and an
-      embedding deployment. Measured limit of the lexical stage: on-topic
-      questions score 1.06-5.78 and off-topic ones mostly 0.00, but "Ignore
-      all previous instructions" scores 2.25 because that wording overlaps a
-      reference - the classes are not separable on term overlap alone, which
-      is what paraphrase similarity would fix.
+      embedding deployment. Measured limit of the lexical stage, restated
+      after the stopword fix: on-topic questions score 0.99-8.67, and seven
+      of the eleven off-topic and injection rows now score 0.00. The four
+      that do not overlap on real content words - "manager", "application",
+      "testing", "python", "ai" - which is the part no threshold or stopword
+      list fixes, and what paraphrase similarity would. The previous note
+      here cited "Ignore all previous instructions" at 2.25 as the evidence
+      and attributed it to overlapping a reference; it was the word "all",
+      and that query now scores 0.00.
 - [ ] Implement `src/lib/cache` (semantic cache) - needs embeddings too.
 - [x] Health endpoint (`GET /api/health`) for the deployment probe, reporting
       absent settings and present-but-malformed ones separately.
