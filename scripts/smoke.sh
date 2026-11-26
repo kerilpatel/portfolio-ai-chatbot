@@ -97,6 +97,20 @@ out = pathlib.Path(sys.argv[1])
 (out / "retrieves-nothing.json").write_text(
     json.dumps({"message": "What is the weather in Paris?"})
 )
+# "When did you get it?" retrieves nothing on its own; the turn before it is
+# what reaches the certifications document. The assistant turn is in here on
+# purpose - it names the certification too, and must not be what finds it.
+(out / "retrieves-via-history.json").write_text(
+    json.dumps(
+        {
+            "message": "When did you get it?",
+            "history": [
+                {"role": "user", "content": "Who issued your AWS certification?"},
+                {"role": "assistant", "content": "Amazon Web Services Training."},
+            ],
+        }
+    )
+)
 FIXPY
 
 post_file() { # post_file <fixture name>
@@ -354,6 +368,18 @@ check "an unrelated question retrieves none" 1 \
 # question is noise the count already carries.
 check "retrieving none names no chunks" 0 \
   "$(grep '"retrievedChunks":0' "$STREAM_LOG" | grep -c 'retrievedChunkIds')"
+
+# The follow-up path end to end. Unit tests cover the policy; only this proves
+# the route actually hands history to it, which is the part that was wired up
+# wrong first time.
+ask_stream retrieves-via-history.json
+sleep 1
+check "a follow-up reaches the corpus through the prior turn" 1 \
+  "$(grep -c '"retrievedChunkIds":\["certifications-detail#0"\],"retrievalUsedHistory":true' "$STREAM_LOG" > /dev/null && echo 1 || echo 0)"
+# A question that stood on its own must not be flagged - otherwise the field
+# says nothing and the two cases are indistinguishable again.
+check "a self-sufficient question is not flagged" 0 \
+  "$(grep '"retrievedChunkIds":\["achievement-secure-code-warrior#0"' "$STREAM_LOG" | grep -c 'retrievalUsedHistory')"
 
 # A failed call used to report no retrieval at all, because the chunks were
 # scoped inside the try the failure escaped - so the requests most worth

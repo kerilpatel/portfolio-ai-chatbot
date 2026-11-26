@@ -162,9 +162,9 @@ Every response sends `Vary: Origin` so shared caches stay correct.
 ## Status
 
 Walking skeleton: a real Azure OpenAI call, grounded in `src/lib/about-me.ts`
-plus lexical retrieval over `src/lib/rag/corpus.ts`, reachable cross-origin
-from the site, with per-IP rate limiting, multi-turn history, optional
-streaming and structured request logging that names the chunks each answer was
-built from. Retrieval is the lexical half only - no embeddings, so no
+plus lexical retrieval over `src/lib/rag/corpus.ts` that follows a
+conversation across turns, reachable cross-origin from the site, with per-IP
+rate limiting, multi-turn history, optional streaming and structured request
+logging that names the chunks each answer was built from. Retrieval is the lexical half only - no embeddings, so no
 paraphrase matching and no semantic cache yet. See
 [docs/plan.md](docs/plan.md#9-open-questions--next-steps).

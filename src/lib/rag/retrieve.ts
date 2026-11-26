@@ -257,6 +257,51 @@ export function retrieve(query: string, chunks: Chunk[]): Chunk[] {
 }
 
 /**
+ * Retrieval for one conversational turn.
+ *
+ * `retrieve` scores a single query, which is the whole story for the first
+ * thing a visitor types and wrong for everything after it. "Who issued your
+ * AWS certification?" retrieves the certifications document; "When did you
+ * get it?" contains no retrievable term at all and gets nothing, so the
+ * follow-up is answered without the material that answered the question it
+ * follows. Measured over five realistic two-turn conversations, three of the
+ * second turns retrieved nothing.
+ *
+ * The prior turn is consulted *only* when the question retrieves nothing on
+ * its own, rather than blended into every query. Blending changes answers
+ * that were already right: "What did you use to build it?" retrieves the
+ * skills document unaided, and appending "Tell me about your final year
+ * project" to it displaces that with two reference chunks. A question that
+ * stands up on its own terms should be answered on its own terms, so this
+ * fires exactly where the gap is and nowhere else.
+ *
+ * Only what the *visitor* said is reused, and the filtering happens here
+ * rather than at the call site so that the rule travels with the reason for
+ * it. Feeding the assistant's reply back in would re-retrieve whatever that
+ * reply was built from, which sounds helpful and is a loop: once an answer
+ * drifts onto the wrong document, every following turn would keep it there.
+ */
+export function retrieveForTurn(
+  message: string,
+  history: readonly { role: "user" | "assistant"; content: string }[],
+  chunks: Chunk[],
+): { chunks: Chunk[]; usedHistory: boolean } {
+  const direct = retrieve(message, chunks);
+  const asked = history.filter((entry) => entry.role === "user");
+  if (direct.length > 0 || asked.length === 0) {
+    return { chunks: direct, usedHistory: false };
+  }
+
+  // The most recent turn only - what the visitor was just asking about.
+  // Joining the whole history would maximise recall, and `idf` only ever adds
+  // score, so it would also drag a topic from three turns ago into a question
+  // that has moved on.
+  const previous = asked[asked.length - 1].content;
+  const widened = retrieve(`${message} ${previous}`, chunks);
+  return { chunks: widened, usedHistory: widened.length > 0 };
+}
+
+/**
  * Renders retrieved chunks for the prompt.
  *
  * Returns an empty string when nothing was retrieved, so the caller appends

@@ -180,6 +180,17 @@ No npm package is published between them - the boundary is HTTP. A client wrappe
       queries and two injection rows now retrieve nothing; no dataset row
       lost the document its rubric depends on, and five rows improved by
       dropping an `education-detail` chunk they were matching on "about".
+- [x] Retrieval follows a conversation. A follow-up carries no retrievable
+      term of its own - "When did you get it?" after "Who issued your AWS
+      certification?" - so the turn that needed the corpus most was the one
+      reaching it least; three of five realistic second turns retrieved
+      nothing. The previous visitor turn is folded in, but only when the
+      question retrieves nothing by itself: blending it into every query
+      displaces chunks that were already right. The log flags the widened
+      case, since otherwise a count cannot distinguish a question that stood
+      on its own from one that only made sense in context. Assistant turns
+      are excluded - reusing them would re-retrieve whatever the reply was
+      built from and pin every later turn to it.
 - [ ] Add embedding-based retrieval alongside the lexical stage, for the
       hybrid approach section 3 asks for. Needs the search resource and an
       embedding deployment. Measured limit of the lexical stage, restated

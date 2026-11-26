@@ -19,7 +19,7 @@ import {
 } from "@/lib/observability";
 import { chunkCorpus } from "@/lib/rag/chunk";
 import { CORPUS } from "@/lib/rag/corpus";
-import { contextBlock, retrieve } from "@/lib/rag/retrieve";
+import { contextBlock, retrieveForTurn } from "@/lib/rag/retrieve";
 import {
   checkRateLimit,
   identifyClient,
@@ -214,7 +214,11 @@ export async function POST(req: NextRequest) {
   // everything that does not - otherwise every request is a cache miss. It is
   // also why SYSTEM_PROMPT_VERSION still hashes only the stable part: that is
   // the thing whose changes matter across runs.
-  const retrieved = retrieve(message, CORPUS_CHUNKS);
+  const { chunks: retrieved, usedHistory } = retrieveForTurn(
+    message,
+    history.messages,
+    CORPUS_CHUNKS,
+  );
 
   // Read before the try: a missing setting is a broken deploy, and logging it
   // as an upstream failure would make the two indistinguishable in the logs -
@@ -234,7 +238,7 @@ export async function POST(req: NextRequest) {
       promptVersion: SYSTEM_PROMPT_VERSION,
       messageChars: message.length,
       historyMessages: history.messages.length,
-      ...retrievalFields(retrieved),
+      ...retrievalFields(retrieved, usedHistory),
     });
     return reply({ reply: FALLBACK_REPLY }, 502);
   }
@@ -286,7 +290,7 @@ export async function POST(req: NextRequest) {
           promptVersion: SYSTEM_PROMPT_VERSION,
           messageChars: message.length,
           historyMessages: history.messages.length,
-          ...retrievalFields(retrieved),
+          ...retrievalFields(retrieved, usedHistory),
           promptTokens: stats.promptTokens,
           completionTokens: stats.completionTokens,
           cachedTokens: stats.cachedTokens,
@@ -342,7 +346,7 @@ export async function POST(req: NextRequest) {
       promptVersion: SYSTEM_PROMPT_VERSION,
       messageChars: message.length,
       historyMessages: history.messages.length,
-      ...retrievalFields(retrieved),
+      ...retrievalFields(retrieved, usedHistory),
       promptTokens: completion.usage?.prompt_tokens,
       completionTokens: completion.usage?.completion_tokens,
       cachedTokens: completion.usage?.prompt_tokens_details?.cached_tokens,
@@ -358,7 +362,7 @@ export async function POST(req: NextRequest) {
       promptVersion: SYSTEM_PROMPT_VERSION,
       messageChars: message.length,
       historyMessages: history.messages.length,
-      ...retrievalFields(retrieved),
+      ...retrievalFields(retrieved, usedHistory),
       ...upstreamFields(error),
     });
     return reply({ reply: FALLBACK_REPLY }, 502);

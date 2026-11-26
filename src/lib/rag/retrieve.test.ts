@@ -9,6 +9,7 @@ import {
   MAX_CONTEXT_CHARS,
   contextBlock,
   retrieve,
+  retrieveForTurn,
   scoreChunks,
 } from "./retrieve.ts";
 
@@ -139,6 +140,133 @@ describe("retrieve", () => {
     const common = scoreChunks("Keril", CHUNKS)[0].score;
     const rare = scoreChunks("CGPA", CHUNKS)[0].score;
     assert.ok(rare > common, `rare ${rare} should beat common ${common}`);
+  });
+});
+
+describe("retrieveForTurn", () => {
+  const asked = (...contents: string[]) =>
+    contents.map((content) => ({ role: "user" as const, content }));
+  const turn = (
+    message: string,
+    prior: readonly { role: "user" | "assistant"; content: string }[] = [],
+  ) => retrieveForTurn(message, prior, CHUNKS);
+  const turnDocs = (
+    message: string,
+    prior: readonly { role: "user" | "assistant"; content: string }[] = [],
+  ) => turn(message, prior).chunks.map((c) => c.documentId);
+
+  // The gap this exists to close, measured: each of these retrieves nothing
+  // on its own, and the turn before it names the document that answers it.
+  it("recovers the right document for a follow-up", () => {
+    for (const [prior, followup, expected] of [
+      [
+        "Who issued your AWS certification?",
+        "When did you get it?",
+        "certifications-detail",
+      ],
+      [
+        "What do your references say about you?",
+        "Who said that?",
+        "reference-bret-anno",
+      ],
+      [
+        "What did your manager at Zebra say?",
+        "Anything else from him?",
+        "reference-manjunath-gundurao",
+      ],
+    ] as const) {
+      assert.deepEqual(
+        docs(followup),
+        [],
+        `precondition - ${followup} should retrieve nothing alone`,
+      );
+      const result = turn(followup, asked(prior));
+      assert.ok(
+        result.chunks.some((c) => c.documentId === expected),
+        `${followup} after ${prior} should reach ${expected}, got ` +
+          `[${result.chunks.map((c) => c.documentId).join(" ")}]`,
+      );
+      assert.equal(result.usedHistory, true);
+    }
+  });
+
+  // The reason this is a fallback and not a blend. "What did you use to build
+  // it?" reaches the skills document unaided; appending the previous turn
+  // displaces it with two reference chunks. A question that stands up on its
+  // own must be answered on its own terms.
+  it("leaves a self-sufficient question untouched", () => {
+    const alone = docs("What did you use to build it?");
+    assert.ok(alone.length > 0, "precondition - should retrieve unaided");
+
+    const result = turn(
+      "What did you use to build it?",
+      asked("Tell me about your final year project"),
+    );
+    assert.deepEqual(
+      result.chunks.map((c) => c.documentId),
+      alone,
+    );
+    assert.equal(result.usedHistory, false);
+  });
+
+  it("matches plain retrieve when there is no history", () => {
+    for (const query of [
+      "Who issued your AWS certification?",
+      "When did you get it?",
+      "What is the weather in Paris?",
+    ]) {
+      assert.deepEqual(turnDocs(query), docs(query));
+      assert.equal(turn(query).usedHistory, false);
+    }
+  });
+
+  it("widens to the most recent turn, not an older one", () => {
+    const result = turn(
+      "When did you get it?",
+      asked(
+        "Who issued your AWS certification?",
+        "Have you published any research?",
+      ),
+    );
+    assert.deepEqual(
+      result.chunks.map((c) => c.documentId),
+      ["achievement-best-presentation"],
+      "should follow the research question, not the certification one",
+    );
+  });
+
+  // Nothing is invented when the context is as empty as the question.
+  it("still retrieves nothing when the prior turn has no content either", () => {
+    const result = turn("Anything else?", asked("Tell me more about that"));
+    assert.deepEqual(result.chunks, []);
+    assert.equal(result.usedHistory, false);
+  });
+
+  // The loop the doc comment warns about. The assistant's reply names the
+  // document it was built from, so reusing it would re-retrieve that document
+  // and keep every later turn pinned to it. Only the visitor's turns count.
+  it("ignores what the assistant said", () => {
+    const result = turn("When did you get it?", [
+      { role: "user", content: "Who should I contact about a role?" },
+      {
+        role: "assistant",
+        content:
+          "I hold an AWS certification issued by Amazon Web Services " +
+          "Training and Certification.",
+      },
+    ]);
+    assert.deepEqual(
+      result.chunks.map((c) => c.documentId),
+      [],
+      "the assistant's mention of the certification must not retrieve it",
+    );
+    assert.equal(result.usedHistory, false);
+  });
+
+  it("reports usedHistory false when widening found nothing", () => {
+    const result = turn("Who should I vote for?", asked("Give me a recipe"));
+    assert.deepEqual(result.chunks, []);
+    assert.equal(result.usedHistory, false);
   });
 });
 

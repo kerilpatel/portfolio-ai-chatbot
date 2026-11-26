@@ -37,6 +37,12 @@ export type RequestLog = {
   /** Corpus chunks injected for this question (plan section 7). Zero means
    *  nothing was relevant enough, which is a valid outcome, not a failure. */
   retrievedChunks?: number;
+  /** Set when the question retrieved nothing on its own and the previous
+   *  visitor turn was folded in to find these chunks. Without it a count of
+   *  two looks the same whether the question stood up by itself or only made
+   *  sense in context, and that is the difference between retrieval working
+   *  and the follow-up path carrying the conversation. */
+  retrievalUsedHistory?: boolean;
   /** Which chunks, by `<document id>#<n>`. The count says retrieval fired;
    *  only the ids say whether it fired at the right thing, which is the
    *  question you actually have when an answer comes back wrong. Omitted when
@@ -84,15 +90,22 @@ export function upstreamFields(error: unknown): {
  * Ids are metadata about the corpus - a static, committed file - not about the
  * visitor, so they stay on the right side of this module's no-content rule.
  */
-export function retrievalFields(chunks: { id: string }[]): {
+export function retrievalFields(
+  chunks: { id: string }[],
+  usedHistory = false,
+): {
   retrievedChunks: number;
   retrievedChunkIds?: string[];
+  retrievalUsedHistory?: boolean;
 } {
   return {
     retrievedChunks: chunks.length,
     ...(chunks.length > 0
       ? { retrievedChunkIds: chunks.map((chunk) => chunk.id) }
       : {}),
+    // Logged only when true: false is the ordinary case and would be noise on
+    // every line.
+    ...(usedHistory ? { retrievalUsedHistory: true } : {}),
   };
 }
 

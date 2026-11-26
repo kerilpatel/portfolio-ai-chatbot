@@ -120,6 +120,23 @@ describe("retrievalFields", () => {
     assert.deepEqual(retrievalFields([]), { retrievedChunks: 0 });
   });
 
+  // Same reasoning as the empty list: false is the ordinary case, so logging
+  // it on every line would be noise. Only the exception is worth a field.
+  it("flags a retrieval that needed the previous turn", () => {
+    assert.deepEqual(
+      retrievalFields([{ id: "certifications-detail#0" }], true),
+      {
+        retrievedChunks: 1,
+        retrievedChunkIds: ["certifications-detail#0"],
+        retrievalUsedHistory: true,
+      },
+    );
+    assert.ok(
+      !("retrievalUsedHistory" in retrievalFields([{ id: "a#0" }], false)),
+    );
+    assert.ok(!("retrievalUsedHistory" in retrievalFields([{ id: "a#0" }])));
+  });
+
   // The reason the helper exists rather than two fields set side by side: a
   // count that disagrees with the list is worse than either alone, because it
   // makes the log untrustworthy without being obviously wrong.
